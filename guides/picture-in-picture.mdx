@@ -1,0 +1,505 @@
+---
+title: Picture-in-Picture
+description: Watch videos in a floating window while browsing other content
+icon: video
+---
+
+Ora Browser's Picture-in-Picture (PiP) feature lets you watch videos in a floating window while browsing other tabs or working in different applications.
+
+## Overview
+
+Picture-in-Picture creates a small, always-on-top video player that stays visible while you multitask.
+
+<CardGroup cols={2}>
+  <Card title="Multi-tasking" icon="window-restore">
+    Watch videos while browsing other sites
+  </Card>
+  <Card title="Always Visible" icon="eye">
+    Video window stays on top of all content
+  </Card>
+  <Card title="Auto-Enable" icon="wand-magic-sparkles">
+    Automatically activates when switching tabs
+  </Card>
+  <Card title="Media Controls" icon="sliders">
+    Full playback controls in the PiP window
+  </Card>
+</CardGroup>
+
+## Automatic Picture-in-Picture
+
+Ora Browser can automatically enter PiP mode when you switch away from a playing video.
+
+### Auto-PiP Configuration
+
+```swift
+// From TabManager.swift:358-363
+func togglePiP(_ currentTab: Tab?, _ oldTab: Tab?) {
+    if currentTab?.id != oldTab?.id, SettingsStore.shared.autoPiPEnabled {
+        currentTab?.webView.evaluateJavaScript("window.__oraTriggerPiP(true)")
+        oldTab?.webView.evaluateJavaScript("window.__oraTriggerPiP()")
+    }
+}
+```
+
+### Enabling Auto-PiP
+
+<Steps>
+  <Step title="Open Settings">
+    Press **⌘,** or navigate to **Ora Browser → Settings**
+  </Step>
+  <Step title="Go to General">
+    Select the **General** section
+  </Step>
+  <Step title="Enable Auto-PiP">
+    Toggle on **"Auto Picture-in-Picture on tab switch"**
+  </Step>
+  <Step title="Start Using">
+    Auto-PiP now activates when you switch tabs with playing videos
+  </Step>
+</Steps>
+
+```swift
+// From GeneralSettingsView.swift:100
+Toggle("Auto Picture-in-Picture on tab switch", isOn: $settings.autoPiPEnabled)
+```
+
+<Note>
+  Auto-PiP is enabled by default to enhance your multitasking experience. You can disable it at any time in Settings.
+</Note>
+
+## How Auto-PiP Works
+
+When you switch tabs with auto-PiP enabled:
+
+1. **Playing video detected** on the current tab
+2. **You switch** to a different tab
+3. **Video enters PiP mode** automatically
+4. **You switch back** to the video tab
+5. **Video exits PiP mode** and returns to normal playback
+
+```swift
+// From TabManager.swift:365-367
+func activateTab(_ tab: Tab) {
+    // Toggle Picture-in-Picture on tab switch
+    togglePiP(tab, activeTab)
+```
+
+The PiP state is managed during tab activation, ensuring smooth transitions.
+
+## JavaScript Integration
+
+Ora Browser injects JavaScript to control PiP functionality:
+
+```swift
+// From WebViewNavigationDelegate.swift:214-235
+window.__oraTriggerPiP = function(isActive = false) {
+    const videos = document.querySelectorAll('video')
+    let mainVideo = null
+
+    // Find the largest, playing video
+    for (let video of videos) {
+        if (!mainVideo || (video.videoWidth * video.videoHeight > 
+            mainVideo.videoWidth * mainVideo.videoHeight)) {
+            mainVideo = video
+        }
+    }
+
+    if (mainVideo) {
+        if (isActive && !document.pictureInPictureElement) {
+            // Enter PiP when switching away from this tab
+            video.requestPictureInPicture()
+        } else if (!isActive && document.pictureInPictureElement) {
+            // Exit PiP when returning to this tab
+            document.exitPictureInPicture()
+        }
+    }
+}
+```
+
+### PiP Logic
+
+The JavaScript implementation:
+
+1. **Finds all video elements** on the page
+2. **Identifies the main video** (largest by dimensions)
+3. **Checks current PiP state** to avoid conflicts
+4. **Requests PiP entry** when switching away
+5. **Exits PiP** when switching back
+
+## WebKit Configuration
+
+PiP support is enabled in the WebView configuration:
+
+```swift
+// From TabScriptHandler.swift:74
+configuration.preferences.setValue(true, forKey: "allowsPictureInPictureMediaPlayback")
+```
+
+This ensures that all videos can support Picture-in-Picture mode.
+
+## Media Session Integration
+
+The PiP feature works with the Media Controller:
+
+```swift
+// From MediaController.swift:6-22
+@MainActor
+final class MediaController: ObservableObject {
+    struct Session: Identifiable, Equatable {
+        var id: UUID { tabID }
+        var tabID: UUID
+        var title: String
+        var pageURL: URL
+        var favicon: URL?
+        var isPlaying: Bool
+        var volume: Double
+        var canGoNext: Bool
+        var canGoPrevious: Bool
+        var lastActive: Date
+        var wasPlayed: Bool
+    }
+```
+
+### Media Controls
+
+PiP windows support full media controls:
+
+<Tabs>
+  <Tab title="Playback">
+    ```swift
+    // From MediaController.swift:131-137
+    func togglePlayPause(_ tabID: UUID? = nil) {
+        guard let id = tabID ?? primary?.tabID else { return }
+        eval(id, "window.__oraMedia && window.__oraMedia.toggle && window.__oraMedia.toggle()")
+        if let idx = sessions.firstIndex(where: { $0.tabID == id }) {
+            sessions[idx].isPlaying.toggle()
+        }
+    }
+    ```
+    
+    Play/Pause directly from PiP window
+  </Tab>
+  <Tab title="Volume">
+    ```swift
+    // From MediaController.swift:151-156
+    func setVolume(for tabID: UUID? = nil, _ value: Double) {
+        guard let id = tabID ?? primary?.tabID else { return }
+        let clampedVolume = clamp(value)
+        if let idx = sessions.firstIndex(where: { $0.tabID == id }) { 
+            sessions[idx].volume = clampedVolume 
+        }
+        eval(id, "window.__oraMedia && window.__oraMedia.setVolume && window.__oraMedia.setVolume(\(clampedVolume))")
+    }
+    ```
+    
+    Adjust volume with precision
+  </Tab>
+  <Tab title="Track Navigation">
+    ```swift
+    // From MediaController.swift:139-149
+    func nextTrack(_ tabID: UUID? = nil) {
+        guard let id = tabID ?? primary?.tabID else { return }
+        eval(id, "window.__oraMedia && window.__oraMedia.next && window.__oraMedia.next()")
+        scheduleTitleSync(for: id)
+    }
+
+    func previousTrack(_ tabID: UUID? = nil) {
+        guard let id = tabID ?? primary?.tabID else { return }
+        eval(id, "window.__oraMedia && window.__oraMedia.previous && window.__oraMedia.previous()")
+        scheduleTitleSync(for: id)
+    }
+    ```
+    
+    Skip to next/previous track if supported
+  </Tab>
+</Tabs>
+
+## Using Picture-in-Picture
+
+### Manual Activation
+
+<Steps>
+  <Step title="Find Video">
+    Navigate to a page with a video player
+  </Step>
+  <Step title="Start Playback">
+    Click play on the video
+  </Step>
+  <Step title="Enter PiP">
+    Right-click the video and select "Picture in Picture" or use the PiP button if available
+  </Step>
+  <Step title="Position Window">
+    Drag the PiP window to your preferred location
+  </Step>
+  <Step title="Resize">
+    Drag the corners to adjust the window size
+  </Step>
+</Steps>
+
+### Automatic Activation
+
+With auto-PiP enabled:
+
+1. **Start playing a video**
+2. **Switch to another tab** (⌃⇥ or ⌘T)
+3. **PiP activates automatically**
+4. **Continue browsing** while watching
+
+## PiP Window Features
+
+<CardGroup cols={2}>
+  <Card title="Always On Top" icon="layer-group">
+    PiP window stays visible over all other windows
+  </Card>
+  <Card title="Moveable" icon="arrows-up-down-left-right">
+    Drag to any screen position
+  </Card>
+  <Card title="Resizable" icon="expand">
+    Adjust size by dragging corners
+  </Card>
+  <Card title="Controls" icon="circle-play">
+    Play, pause, and skip controls
+  </Card>
+</CardGroup>
+
+## Supported Video Sites
+
+Picture-in-Picture works with most modern video players:
+
+- **YouTube** - Full support with all controls
+- **Vimeo** - Complete PiP functionality
+- **Netflix** - Native PiP support
+- **Amazon Prime Video** - Full compatibility
+- **HTML5 video players** - Universal support
+- **Embedded videos** - Most standard implementations
+
+<Note>
+  Some streaming services may restrict PiP due to DRM or licensing requirements.
+</Note>
+
+## Settings & Preferences
+
+### Auto-PiP Setting
+
+```swift
+// From SettingsStore.swift:221-223
+@Published var autoPiPEnabled: Bool {
+    didSet { defaults.set(autoPiPEnabled, forKey: autoPiPEnabledKey) }
+}
+
+// From SettingsStore.swift:278
+autoPiPEnabled = defaults.object(forKey: autoPiPEnabledKey) as? Bool ?? true
+```
+
+The setting is:
+- **Enabled by default** (`true`)
+- **Persisted across sessions**
+- **Accessible in Settings → General**
+
+### Toggle Setting
+
+You can toggle auto-PiP on or off at any time without affecting manual PiP usage.
+
+## Advanced Features
+
+### Tab State Tracking
+
+The browser tracks which tabs have playing media:
+
+```swift
+// From MediaController.swift:80-92
+switch event.type {
+case "state":
+    let idx = ensureSession()
+    let playing = (event.state == "playing")
+    sessions[idx].isPlaying = playing
+    // Update tab's isPlayingMedia property
+    tabRefs[tab.id]?.value?.isPlayingMedia = playing
+    if let vol = event.volume { sessions[idx].volume = clamp(vol) }
+    // Update recency when it starts playing
+    if playing { 
+        sessions[idx].lastActive = Date()
+        moveToFront(index: idx)
+    }
+```
+
+### Session Management
+
+Media sessions persist across tab switches:
+
+```swift
+// From MediaController.swift:24-26
+@Published private(set) var sessions: [Session] = []
+@Published var isVisible: Bool = false
+```
+
+Sessions track:
+- **Playing state** for each tab
+- **Volume levels** per video
+- **Track navigation** capabilities
+- **Last active** timestamps
+
+### Multiple PiP Windows
+
+While macOS limits PiP to one video at a time, Ora Browser intelligently manages which video is active:
+
+```swift
+// From MediaController.swift:47-54
+var primary: Session? {
+    visibleSessions.first
+}
+
+var visibleSessions: [Session] {
+    sessions.filter(\.wasPlayed)
+}
+```
+
+The **primary session** is the most recently played video.
+
+## Keyboard & Controls
+
+While in Picture-in-Picture mode:
+
+| Action | Method |
+|--------|--------|
+| **Exit PiP** | Click the X button or return to the video tab |
+| **Resize** | Drag corners of the PiP window |
+| **Move** | Drag the window to a new position |
+| **Play/Pause** | Click the play button or press Space |
+| **Volume** | Use volume controls in PiP or system volume |
+
+## Best Practices
+
+<Accordion title="Positioning the PiP Window">
+  Place the PiP window where it won't obscure important content:
+  - Bottom right corner for most tasks
+  - Top right for reading long articles
+  - Second monitor for multi-screen setups
+  - Adjust size based on video importance
+</Accordion>
+
+<Accordion title="Using Auto-PiP Effectively">
+  Maximize your multitasking:
+  - Keep important videos playing while researching
+  - Watch tutorials while taking notes
+  - Monitor live streams while browsing
+  - Follow video calls while reviewing documents
+</Accordion>
+
+<Accordion title="Managing Multiple Videos">
+  When working with multiple video tabs:
+  - Only one video can be in PiP at a time
+  - The most recent video takes priority
+  - Return to a tab to exit PiP for that video
+  - Use media controls to manage playback
+</Accordion>
+
+<Accordion title="Performance Considerations">
+  For smooth video playback:
+  - Close unused tabs to free resources
+  - Use PiP for one video at a time
+  - Adjust video quality for performance
+  - Monitor CPU usage with Activity Monitor
+</Accordion>
+
+## Troubleshooting
+
+### PiP Won't Activate
+
+- Ensure auto-PiP is enabled in Settings
+- Verify the video is playing before switching tabs
+- Check that the website supports PiP
+- Try manually entering PiP mode
+- Restart the browser if issues persist
+
+### Video Returns to Tab
+
+If PiP exits unexpectedly:
+- Check if you clicked the close button
+- Verify the video is still playing
+- Ensure the tab wasn't closed
+- Look for site-specific restrictions
+
+### Controls Not Working
+
+- Refresh the page and try again
+- Check if the video player supports the controls
+- Verify JavaScript is enabled
+- Try a different browser if site-specific
+
+### Poor Performance in PiP
+
+- Lower the video quality
+- Close other resource-intensive tabs
+- Check your internet connection speed
+- Update macOS and Ora Browser
+- Restart your computer if needed
+
+## Privacy & Permissions
+
+<Note>
+  Picture-in-Picture doesn't require special permissions beyond standard video playback. The feature works entirely within the browser's sandbox.
+</Note>
+
+### What's Shared
+
+- Video playback state is visible to the current website
+- Volume settings are browser-controlled
+- No additional data is transmitted
+
+### What's Private
+
+- PiP usage isn't tracked or reported
+- Video content stays in the browser
+- No external services involved
+
+## Platform Integration
+
+Ora Browser's PiP integrates with macOS:
+
+```swift
+// From TabScriptHandler.swift:74
+configuration.preferences.setValue(true, forKey: "allowsPictureInPictureMediaPlayback")
+```
+
+This uses native macOS PiP:
+- **System-level window management**
+- **Energy-efficient video rendering**
+- **Consistent across all apps**
+- **Respects system preferences**
+
+## Technical Details
+
+### Video Detection
+
+The browser finds the optimal video for PiP:
+
+```javascript
+// Finds the largest, playing video
+for (let video of videos) {
+    if (!mainVideo || (video.videoWidth * video.videoHeight > 
+        mainVideo.videoWidth * mainVideo.videoHeight)) {
+        mainVideo = video
+    }
+}
+```
+
+Prioritizes:
+1. **Largest video** by pixel dimensions
+2. **Actively playing** videos over paused
+3. **Visible videos** in the viewport
+
+### State Management
+
+```javascript
+if (isActive && !document.pictureInPictureElement) {
+    video.requestPictureInPicture()
+} else if (!isActive && document.pictureInPictureElement) {
+    document.exitPictureInPicture()
+}
+```
+
+Ensures:
+- No duplicate PiP windows
+- Clean state transitions
+- Proper cleanup on tab close

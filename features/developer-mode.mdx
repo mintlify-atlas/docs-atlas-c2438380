@@ -1,0 +1,488 @@
+---
+title: Developer Mode
+description: Built-in development tools, Web Inspector, and advanced debugging capabilities
+icon: code
+---
+
+Ora Browser is built by developers, for developers. With native support for WebKit's developer tools, custom keyboard shortcuts, and advanced debugging features, Ora makes web development seamless.
+
+## Web Inspector
+
+Ora enables WebKit's full developer tools suite by default, giving you access to powerful debugging capabilities.
+
+### Enabling Developer Extras
+
+Developer extras are enabled automatically when creating any WebView:
+
+```swift
+func customWKConfig(containerId: UUID, temporaryStorage: Bool = false) -> WKWebViewConfiguration {
+    let configuration = WKWebViewConfiguration()
+    
+    // Enable Developer Tools
+    configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
+    configuration.preferences.setValue(true, forKey: "javaScriptEnabled")
+    configuration.preferences.setValue(true, forKey: "javaScriptCanOpenWindowsAutomatically")
+    
+    return configuration
+}
+```
+
+### Making WebViews Inspectable
+
+All WebViews in Ora are marked as inspectable for external debugging:
+
+```swift
+webView.isInspectable = true
+```
+
+<Note>
+With `isInspectable` enabled, you can attach Safari's Web Inspector or other debugging tools to inspect any Ora tab.
+</Note>
+
+## Opening the Inspector
+
+Right-click anywhere on a webpage and select **Inspect Element** to open the Web Inspector.
+
+<Steps>
+  <Step title="Right-click on any element">
+    Use the context menu to access developer tools
+  </Step>
+  
+  <Step title="Select 'Inspect Element'">
+    Opens the Web Inspector focused on the selected element
+  </Step>
+  
+  <Step title="Use the Inspector panels">
+    Access Elements, Console, Sources, Network, and more
+  </Step>
+</Steps>
+
+## Inspector Features
+
+<CardGroup cols={2}>
+  <Card title="Elements Panel" icon="code">
+    Inspect and modify the DOM structure and CSS styles in real-time
+  </Card>
+  
+  <Card title="Console" icon="terminal">
+    Execute JavaScript, view logs, and debug runtime errors
+  </Card>
+  
+  <Card title="Network Panel" icon="network-wired">
+    Monitor network requests, response times, and resource loading
+  </Card>
+  
+  <Card title="Sources" icon="file-code">
+    Debug JavaScript with breakpoints, step execution, and call stack inspection
+  </Card>
+</CardGroup>
+
+## JavaScript Console
+
+Access the JavaScript console to debug scripts and inspect page state.
+
+### Console Logging
+
+All console methods are available:
+- `console.log()` - Standard logging
+- `console.error()` - Error messages
+- `console.warn()` - Warnings
+- `console.info()` - Informational messages
+- `console.debug()` - Debug messages
+- `console.table()` - Tabular data display
+
+### Executing JavaScript
+
+Run JavaScript directly in the console or programmatically:
+
+```swift
+webView.evaluateJavaScript("document.title") { result, error in
+    if let title = result as? String {
+        print("Page title: \(title)")
+    }
+}
+```
+
+## JavaScript Configuration
+
+Ora provides full JavaScript support with modern features enabled:
+
+```swift
+// Enable JavaScript
+configuration.preferences.setValue(true, forKey: "javaScriptEnabled")
+configuration.preferences.setValue(true, forKey: "javaScriptCanOpenWindowsAutomatically")
+
+// Security: Prevent automatic window opening
+configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
+
+// Enable modern JavaScript features
+let preferences = WKWebpagePreferences()
+preferences.allowsContentJavaScript = true
+configuration.defaultWebpagePreferences = preferences
+```
+
+## Script Message Handlers
+
+Ora implements custom JavaScript message handlers for advanced page interaction.
+
+### URL and Title Updates
+
+Capture URL and title changes from JavaScript:
+
+```swift
+class TabScriptHandler: NSObject, WKScriptMessageHandler {
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "listener" {
+            guard let jsonString = message.body as? String,
+                  let jsonData = jsonString.data(using: .utf8)
+            else { return }
+            
+            do {
+                let update = try JSONDecoder().decode(URLUpdate.self, from: jsonData)
+                DispatchQueue.main.async {
+                    guard let tab = self.tab else { return }
+                    tab.title = update.title
+                    tab.url = URL(string: update.href) ?? tab.url
+                    tab.setFavicon()
+                    tab.updateHistory()
+                }
+            } catch {
+                logger.error("Failed to decode JS message: \(error.localizedDescription)")
+            }
+        }
+    }
+}
+```
+
+### Link Hover Detection
+
+Capture hovered links for preview:
+
+```swift
+if message.name == "linkHover" {
+    let hovered = message.body as? String
+    DispatchQueue.main.async {
+        guard let tab = self.tab else { return }
+        let trimmed = (hovered ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        tab.hoveredLinkURL = trimmed.isEmpty ? nil : trimmed
+    }
+}
+```
+
+### Media Event Handling
+
+Monitor media playback events:
+
+```swift
+if message.name == "mediaEvent" {
+    guard let body = message.body as? String,
+          let data = body.data(using: .utf8),
+          let tab = self.tab
+    else { return }
+    
+    if let payload = try? JSONDecoder().decode(MediaEventPayload.self, from: data) {
+        DispatchQueue.main.async { [weak self] in
+            self?.mediaController?.receive(event: payload, from: tab)
+        }
+    }
+}
+```
+
+### Registering Message Handlers
+
+```swift
+let contentController = WKUserContentController()
+contentController.add(self, name: "listener")
+contentController.add(self, name: "linkHover")
+contentController.add(self, name: "mediaEvent")
+configuration.userContentController = contentController
+```
+
+## Performance Optimization
+
+Ora configures WebViews for optimal performance:
+
+### Hardware Acceleration
+
+```swift
+// Enable layer-backed view for hardware acceleration
+webView.wantsLayer = true
+webView.isInspectable = true
+
+if let layer = webView.layer {
+    layer.isOpaque = true
+    layer.drawsAsynchronously = true
+}
+```
+
+### Process Pool Management
+
+```swift
+// Enable process pool for better memory management
+let processPool = WKProcessPool()
+configuration.processPool = processPool
+```
+
+### GPU Acceleration
+
+```swift
+let preferences = WKWebpagePreferences()
+preferences.allowsContentJavaScript = true
+configuration.defaultWebpagePreferences = preferences
+```
+
+## Media Development
+
+### Picture-in-Picture Support
+
+```swift
+configuration.preferences.setValue(true, forKey: "allowsPictureInPictureMediaPlayback")
+configuration.allowsAirPlayForMediaPlayback = true
+configuration.preferences.isElementFullscreenEnabled = true
+```
+
+### Autoplay Configuration
+
+```swift
+// Enable media playback without user interaction
+configuration.mediaTypesRequiringUserActionForPlayback = []
+```
+
+### Media Control Integration
+
+```swift
+func togglePiP(_ currentTab: Tab?, _ oldTab: Tab?) {
+    if currentTab?.id != oldTab?.id, SettingsStore.shared.autoPiPEnabled {
+        currentTab?.webView.evaluateJavaScript("window.__oraTriggerPiP(true)")
+        oldTab?.webView.evaluateJavaScript("window.__oraTriggerPiP()")
+    }
+}
+```
+
+## Custom User Agent
+
+Ora uses a modern Safari user agent string for maximum compatibility:
+
+```swift
+let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0.1 Safari/605.1.15"
+configuration.applicationNameForUserAgent = userAgent
+```
+
+## Navigation Gestures
+
+Enable intuitive navigation for development testing:
+
+```swift
+webView.allowsMagnification = true
+webView.allowsBackForwardNavigationGestures = true
+```
+
+## URL Construction Utilities
+
+Ora provides utilities for constructing and validating URLs:
+
+```swift
+func loadURL(_ urlString: String) {
+    lastAccessedAt = Date()
+    let input = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+    
+    // Try to construct a direct URL
+    if let directURL = constructURL(from: input) {
+        webView.load(URLRequest(url: directURL))
+        return
+    }
+    
+    // Otherwise, treat as search query
+    let searchEngineService = SearchEngineService()
+    if let engine = searchEngineService.getDefaultSearchEngine(for: self.container.id),
+       let searchURL = searchEngineService.createSearchURL(for: engine, query: input)
+    {
+        webView.load(URLRequest(url: searchURL))
+        return
+    }
+    
+    // Fallback to Google search
+    if let fallbackURL = URL(string: "https://www.google.com/search?q="
+        + (input.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""))
+    {
+        webView.load(URLRequest(url: fallbackURL))
+    }
+}
+```
+
+## Custom Keyboard Shortcuts
+
+Ora supports custom keyboard shortcuts for development workflows.
+
+### Default Developer Shortcuts
+
+| Action | Shortcut |
+|--------|----------|
+| Reload Page | `⌘R` |
+| Hard Reload (Clear Cache) | `⌘⇧R` |
+| Clear Cookies & Reload | `⌘⌥⇧R` |
+| Find in Page | `⌘F` |
+| Toggle Sidebar | `⌘⌥S` |
+| Toggle Toolbar | `⌘⌥T` |
+
+### Custom Shortcut Manager
+
+```swift
+@Published var customKeyboardShortcuts: [String: KeyChord] {
+    didSet { saveCodable(customKeyboardShortcuts, forKey: customKeyboardShortcutsKey) }
+}
+
+func setCustomKeyboardShortcut(id: String, keyChord: KeyChord) {
+    var shortcuts = customKeyboardShortcuts
+    shortcuts[id] = keyChord
+    customKeyboardShortcuts = shortcuts
+}
+```
+
+## Navigation Commands
+
+Access common development actions through the menu system:
+
+```swift
+CommandMenu("Navigation") {
+    Button("Reload Page") {
+        NotificationCenter.default.post(name: .reloadPage, object: NSApp.keyWindow)
+    }
+    .keyboardShortcut("r", modifiers: .command)
+    
+    Button("Clear Cache & Reload") {
+        NotificationCenter.default.post(name: .clearCacheAndReload, object: NSApp.keyWindow)
+    }
+    .keyboardShortcut("r", modifiers: [.command, .shift])
+    
+    Button("Clear Cookies & Reload") {
+        NotificationCenter.default.post(name: .clearCookiesAndReload, object: NSApp.keyWindow)
+    }
+    .keyboardShortcut("r", modifiers: [.command, .option, .shift])
+}
+```
+
+## Error Handling
+
+Ora provides comprehensive error handling for navigation failures:
+
+```swift
+func setNavigationError(_ error: Error, for url: URL?) {
+    DispatchQueue.main.async {
+        self.hasNavigationError = true
+        self.navigationError = error
+        self.failedURL = url
+    }
+}
+
+func clearNavigationError() {
+    DispatchQueue.main.async {
+        self.hasNavigationError = false
+        self.navigationError = nil
+        self.failedURL = nil
+    }
+}
+
+func retryNavigation() {
+    if let url = failedURL {
+        let request = URLRequest(url: url)
+        webView.load(request)
+    }
+}
+```
+
+## Best Practices for Developers
+
+<CardGroup cols={2}>
+  <Card title="Use Web Inspector" icon="magnifying-glass">
+    Right-click and select "Inspect Element" for full access to WebKit's debugging tools
+  </Card>
+  
+  <Card title="Test with Spaces" icon="layer-group">
+    Create separate Spaces for different testing environments (production, staging, local)
+  </Card>
+  
+  <Card title="Monitor the Console" icon="terminal">
+    Keep the console open to catch JavaScript errors and network issues early
+  </Card>
+  
+  <Card title="Custom Shortcuts" icon="keyboard">
+    Configure custom keyboard shortcuts for your most common development tasks
+  </Card>
+</CardGroup>
+
+## Advanced Features
+
+### Download Manager Integration
+
+Ora includes a built-in download manager for testing file downloads:
+
+```swift
+init(
+    id: UUID = UUID(),
+    url: URL,
+    title: String,
+    container: TabContainer,
+    downloadManager: DownloadManager? = nil,
+    isPrivate: Bool
+) {
+    self.downloadManager = downloadManager
+    // ... initialization
+}
+```
+
+### History Manager for Testing
+
+Track browsing history during development:
+
+```swift
+func updateHistory() {
+    if let historyManager = self.historyManager {
+        Task { @MainActor in
+            historyManager.record(
+                title: self.title,
+                url: self.url,
+                faviconURL: self.favicon,
+                faviconLocalFile: self.faviconLocalFile,
+                container: self.container
+            )
+        }
+    }
+}
+```
+
+### Media Debugging
+
+Debug media playback with integrated media controls:
+
+```swift
+func stopMedia(completed: @escaping () -> Void) {
+    let js = """
+    document.querySelectorAll('video, audio').forEach(el => {
+        try {
+            el.pause();
+            el.src = '';
+            el.load();
+        } catch (e) {}
+    });
+    """
+    webView.evaluateJavaScript(js) { _, _ in
+        self.webView.closeAllMediaPresentations(completionHandler: completed)
+    }
+}
+```
+
+<Warning>
+Developer tools can impact page performance. For accurate performance testing, disable the inspector when measuring load times or rendering performance.
+</Warning>
+
+## Future Development Features
+
+Ora is actively developing additional developer features:
+
+- **Extension Support** - Safari and Chrome extension compatibility (in development)
+- **Network Throttling** - Simulate different network conditions
+- **Device Emulation** - Test responsive designs with device profiles
+- **Local Override** - Override network requests with local files
+
+Check the [roadmap](/resources/roadmap) for the latest development features.

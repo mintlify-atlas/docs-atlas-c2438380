@@ -1,0 +1,530 @@
+---
+title: Download Management
+description: Manage, track, and organize downloads in Ora Browser
+icon: download
+---
+
+Ora Browser includes a powerful download manager that tracks active and recent downloads with detailed progress monitoring.
+
+## Download Manager Overview
+
+The download manager provides real-time tracking of file downloads with progress indicators, history, and file management capabilities.
+
+```swift
+// From DownloadManager.swift:6-14
+@MainActor
+class DownloadManager: ObservableObject {
+    @Published var activeDownloads: [Download] = []
+    @Published var recentDownloads: [Download] = []
+    @Published var isDownloadsPopoverOpen = false
+
+    let modelContainer: ModelContainer
+    let modelContext: ModelContext
+    private var activeDownloadTasks: [UUID: WKDownload] = [:]
+```
+
+### Key Features
+
+<CardGroup cols={2}>
+  <Card title="Active Downloads" icon="spinner">
+    Real-time progress tracking for ongoing downloads
+  </Card>
+  <Card title="Download History" icon="clock">
+    View and manage the last 20 downloads
+  </Card>
+  <Card title="File Operations" icon="folder">
+    Open downloads in Finder or manage files
+  </Card>
+  <Card title="Status Tracking" icon="list-check">
+    Monitor pending, downloading, completed, failed, and cancelled states
+  </Card>
+</CardGroup>
+
+## Starting a Download
+
+Downloads are automatically initiated when you click download links or save files:
+
+```swift
+// From DownloadManager.swift:39-66
+func startDownload(
+    from downloadTask: WKDownload,
+    originalURL: URL,
+    suggestedFilename: String,
+    expectedSize: Int64 = 0
+) -> Download {
+    let download = Download(
+        originalURL: originalURL,
+        fileName: suggestedFilename,
+        fileSize: expectedSize
+    )
+
+    download.status = .downloading
+    download.isActive = true
+
+    // Save to SwiftData
+    modelContext.insert(download)
+    do {
+        try modelContext.save()
+    } catch {
+        // Failed to save download
+    }
+
+    activeDownloadTasks[download.id] = downloadTask
+    activeDownloads.append(download)
+    refreshRecentDownloads()
+    return download
+}
+```
+
+### Download States
+
+```swift
+// From Download.swift:4-10
+enum DownloadStatus: String, Codable {
+    case pending
+    case downloading
+    case completed
+    case failed
+    case cancelled
+}
+```
+
+## Download Progress
+
+Real-time progress updates show download speed and completion status:
+
+```swift
+// From DownloadManager.swift:68-78
+func updateDownloadProgress(_ download: Download, downloadedBytes: Int64, totalBytes: Int64) {
+    download.updateProgress(downloadedBytes: downloadedBytes, totalBytes: totalBytes)
+
+    try? modelContext.save()
+
+    // Trigger UI updates
+    DispatchQueue.main.async {
+        self.objectWillChange.send()
+        download.objectWillChange.send()
+    }
+}
+```
+
+### Progress Tracking
+
+Each download tracks detailed progress information:
+
+```swift
+// From Download.swift:54-65
+func updateProgress(downloadedBytes: Int64, totalBytes: Int64) {
+    self.downloadedBytes = downloadedBytes
+    self.fileSize = totalBytes
+    self.progress = totalBytes > 0 ? Double(downloadedBytes) / Double(totalBytes) : 0.0
+
+    // Update published properties for UI
+    DispatchQueue.main.async {
+        self.displayDownloadedBytes = downloadedBytes
+        self.displayFileSize = totalBytes > 0 ? totalBytes : self.fileSize
+        self.displayProgress = self.progress
+    }
+}
+```
+
+<Note>
+  Progress updates happen on the main thread to ensure smooth UI updates without blocking the download.
+</Note>
+
+## Download Model
+
+Each download is represented by a SwiftData model:
+
+```swift
+// From Download.swift:13-26
+@Model
+class Download: ObservableObject, Identifiable {
+    var id: UUID
+    var originalURL: URL
+    var originalURLString: String
+    var fileName: String
+    var fileSize: Int64
+    var downloadedBytes: Int64
+    var status: DownloadStatus
+    var progress: Double
+    var destinationURL: URL?
+    var createdAt: Date
+    var completedAt: Date?
+    var error: String?
+```
+
+### Download Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `id` | UUID | Unique identifier |
+| `originalURL` | URL | Source URL of the download |
+| `fileName` | String | Name of the downloaded file |
+| `fileSize` | Int64 | Total file size in bytes |
+| `downloadedBytes` | Int64 | Bytes downloaded so far |
+| `status` | DownloadStatus | Current download state |
+| `progress` | Double | Progress value (0.0 to 1.0) |
+| `destinationURL` | URL? | Where the file was saved |
+| `createdAt` | Date | When download started |
+| `completedAt` | Date? | When download finished |
+| `error` | String? | Error message if failed |
+
+## Completing Downloads
+
+When a download finishes successfully:
+
+```swift
+// From DownloadManager.swift:80-90
+func completeDownload(_ download: Download, destinationURL: URL) {
+    download.markCompleted(destinationURL: destinationURL)
+
+    try? modelContext.save()
+
+    activeDownloadTasks.removeValue(forKey: download.id)
+    activeDownloads.removeAll { $0.id == download.id }
+    refreshRecentDownloads()
+
+    // Show notification or update UI
+}
+```
+
+### Completion Handler
+
+```swift
+// From Download.swift:67-73
+func markCompleted(destinationURL: URL) {
+    self.status = .completed
+    self.progress = 1.0
+    self.destinationURL = destinationURL
+    self.completedAt = Date()
+    self.isActive = false
+}
+```
+
+## Cancelling Downloads
+
+You can cancel active downloads at any time:
+
+```swift
+// From DownloadManager.swift:102-114
+func cancelDownload(_ download: Download) {
+    if let downloadTask = activeDownloadTasks[download.id] {
+        downloadTask.cancel()
+    }
+
+    download.markCancelled()
+
+    try? modelContext.save()
+
+    activeDownloadTasks.removeValue(forKey: download.id)
+    activeDownloads.removeAll { $0.id == download.id }
+    refreshRecentDownloads()
+}
+```
+
+<Steps>
+  <Step title="Access Downloads">
+    Click the downloads icon in the toolbar
+  </Step>
+  <Step title="Find Active Download">
+    Locate the download you want to cancel
+  </Step>
+  <Step title="Cancel">
+    Click the cancel button next to the download
+  </Step>
+  <Step title="Confirm">
+    The download stops immediately and is marked as cancelled
+  </Step>
+</Steps>
+
+## Handling Download Failures
+
+When downloads fail, error information is preserved:
+
+```swift
+// From DownloadManager.swift:92-100
+func failDownload(_ download: Download, error: String) {
+    download.markFailed(error: error)
+
+    try? modelContext.save()
+
+    activeDownloadTasks.removeValue(forKey: download.id)
+    activeDownloads.removeAll { $0.id == download.id }
+    refreshRecentDownloads()
+}
+```
+
+### Error Tracking
+
+```swift
+// From Download.swift:75-79
+func markFailed(error: String) {
+    self.status = .failed
+    self.error = error
+    self.isActive = false
+}
+```
+
+<Warning>
+  Failed downloads remain in the recent downloads list so you can retry them. Check the error message to understand what went wrong.
+</Warning>
+
+## Download History
+
+View your recent download history:
+
+```swift
+// From DownloadManager.swift:25-37
+private func loadRecentDownloads() {
+    let descriptor = FetchDescriptor<Download>(
+        sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+    )
+
+    do {
+        let downloads = try modelContext.fetch(descriptor)
+        self.recentDownloads = Array(downloads.prefix(20)) // Show last 20 downloads
+        self.activeDownloads = downloads.filter { $0.status == .downloading }
+    } catch {
+        // Failed to load downloads
+    }
+}
+```
+
+<Note>
+  The download history shows the last 20 downloads, sorted by creation date (newest first).
+</Note>
+
+### Clearing Completed Downloads
+
+Remove completed downloads from the list:
+
+```swift
+// From DownloadManager.swift:116-124
+func clearCompletedDownloads() {
+    let completedDownloads = recentDownloads.filter { $0.status == .completed }
+    for download in completedDownloads {
+        modelContext.delete(download)
+    }
+
+    try? modelContext.save()
+    refreshRecentDownloads()
+}
+```
+
+## File Operations
+
+### Opening in Finder
+
+Quickly locate downloaded files:
+
+```swift
+// From DownloadManager.swift:137-140
+func openDownloadInFinder(_ download: Download) {
+    guard let destinationURL = download.destinationURL else { return }
+    NSWorkspace.shared.selectFile(destinationURL.path, inFileViewerRootedAtPath: "")
+}
+```
+
+<Steps>
+  <Step title="Complete Download">
+    Wait for the download to finish
+  </Step>
+  <Step title="Open Downloads List">
+    Click the downloads icon in the toolbar
+  </Step>
+  <Step title="Show in Finder">
+    Right-click the download and select "Show in Finder"
+  </Step>
+</Steps>
+
+### Deleting Downloads
+
+Remove downloads from the list:
+
+```swift
+// From DownloadManager.swift:126-135
+func deleteDownload(_ download: Download) {
+    // If it's an active download, cancel it first
+    if download.status == .downloading {
+        cancelDownload(download)
+    }
+
+    modelContext.delete(download)
+    try? modelContext.save()
+    refreshRecentDownloads()
+}
+```
+
+<Warning>
+  Deleting a download from the list doesn't delete the actual file from disk. To remove the file, delete it from Finder.
+</Warning>
+
+## Download Location
+
+### Default Directory
+
+```swift
+// From DownloadManager.swift:147-150
+func getDownloadsDirectory() -> URL {
+    return FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)
+        .first ?? URL(fileURLWithPath: NSHomeDirectory())
+}
+```
+
+By default, files are saved to your macOS Downloads folder (`~/Downloads`).
+
+### Unique Filenames
+
+Ora Browser prevents filename conflicts:
+
+```swift
+// From DownloadManager.swift:153-168
+func createUniqueFilename(for url: URL) -> URL {
+    var finalURL = url
+    var counter = 1
+
+    while FileManager.default.fileExists(atPath: finalURL.path) {
+        let filename = url.deletingPathExtension().lastPathComponent
+        let ext = url.pathExtension
+        let directory = url.deletingLastPathComponent()
+
+        let newFilename = ext.isEmpty ? "\(filename) (\(counter))" : "\(filename) (\(counter)).\(ext)"
+        finalURL = directory.appendingPathComponent(newFilename)
+        counter += 1
+    }
+
+    return finalURL
+}
+```
+
+If `file.pdf` exists, the next download is saved as `file (1).pdf`, then `file (2).pdf`, etc.
+
+## Formatted Display
+
+File sizes are displayed in human-readable format:
+
+```swift
+// From Download.swift:86-96
+var formattedFileSize: String {
+    return ByteCountFormatter.string(
+        fromByteCount: displayFileSize > 0 ? displayFileSize : fileSize,
+        countStyle: .file
+    )
+}
+
+var formattedDownloadedSize: String {
+    return ByteCountFormatter.string(fromByteCount: displayDownloadedBytes, countStyle: .file)
+}
+```
+
+Examples:
+- `1.5 MB` instead of `1572864 bytes`
+- `3.2 GB` instead of `3435973836 bytes`
+- `456 KB` instead of `466944 bytes`
+
+## UI Integration
+
+The download manager is integrated into the browser UI:
+
+<Tabs>
+  <Tab title="Toolbar Icon">
+    - Click the downloads icon to view active and recent downloads
+    - Badge shows number of active downloads
+    - Quick access to download operations
+  </Tab>
+  <Tab title="Progress Indicators">
+    - Progress bars show download completion
+    - Speed and time remaining estimates
+    - Pause/Resume capabilities (if supported)
+  </Tab>
+  <Tab title="Popover View">
+    - Compact view of all downloads
+    - Filter by status
+    - Quick actions for each download
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<Accordion title="Monitor Active Downloads">
+  Keep an eye on the download progress:
+  - Check for completion notifications
+  - Verify file integrity after download
+  - Watch for error messages
+  - Cancel slow or stuck downloads
+</Accordion>
+
+<Accordion title="Manage Download History">
+  Regularly clean up your download list:
+  - Clear completed downloads periodically
+  - Delete failed downloads after retry
+  - Keep the list manageable (20 items max)
+</Accordion>
+
+<Accordion title="Handle Failed Downloads">
+  When downloads fail:
+  1. Check the error message
+  2. Verify your internet connection
+  3. Try downloading again
+  4. Check available disk space
+  5. Verify the source URL is still valid
+</Accordion>
+
+<Accordion title="Organize Downloaded Files">
+  After downloading:
+  - Move files to appropriate folders
+  - Rename files for better organization
+  - Delete files you no longer need
+  - Back up important downloads
+</Accordion>
+
+## Troubleshooting
+
+### Download Won't Start
+
+- Check your internet connection
+- Verify the source URL is accessible
+- Ensure you have write permissions to the Downloads folder
+- Check available disk space
+
+### Download Progress Stuck
+
+- Cancel and restart the download
+- Check network stability
+- Try downloading at a different time
+- Verify the server is responding
+
+### Downloaded File Won't Open
+
+- Check if the download completed successfully
+- Verify the file isn't corrupted (check file size)
+- Ensure you have the right app to open the file type
+- Try re-downloading the file
+
+### Can't Find Downloaded File
+
+1. Click "Show in Finder" from the downloads list
+2. Check your Downloads folder manually
+3. Search Spotlight for the filename
+4. Verify the download actually completed
+
+## Privacy Considerations
+
+<Note>
+  Downloads from private browsing windows are tracked during the session but the history is cleared when you close the private window.
+</Note>
+
+### Private Mode Behavior
+
+- Download progress tracked normally
+- Files are saved to disk
+- Download history cleared on window close
+- File metadata not retained
+
+### Regular Mode
+
+- Full download history maintained
+- Last 20 downloads always visible
+- Download metadata persisted
+- Searchable download records

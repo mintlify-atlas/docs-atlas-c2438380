@@ -1,0 +1,497 @@
+---
+title: Settings and Preferences
+description: Configure Ora Browser's behavior, tab management, privacy controls, and keyboard shortcuts
+---
+
+Ora Browser provides comprehensive settings to customize your browsing experience. Access settings by pressing `⌘,` or selecting **Ora Browser > Preferences** from the menu.
+
+## Settings Categories
+
+Settings are organized into five main categories:
+
+<CardGroup cols={2}>
+  <Card title="General" icon="gearshape">
+    App appearance, tab management, and update preferences
+  </Card>
+  <Card title="Spaces" icon="rectangle.3.group">
+    Configure individual workspace settings and behavior
+  </Card>
+  <Card title="Privacy" icon="lock.shield">
+    Tracking prevention, cookies, and security settings
+  </Card>
+  <Card title="Shortcuts" icon="command">
+    Customize keyboard shortcuts for all actions
+  </Card>
+  <Card title="Search" icon="magnifyingglass">
+    Manage search engines and add custom search providers
+  </Card>
+</CardGroup>
+
+## General Settings
+
+General settings control app-wide behavior and appearance.
+
+### App Information
+
+The settings window displays your current version and build number:
+
+```swift
+private func getAppVersion() -> String {
+    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+    let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
+    return "v\(version) (\(build))"
+}
+```
+
+### Default Browser
+
+If Ora is not your default browser, you'll see a prompt to set it:
+
+```swift
+if !defaultBrowserManager.isDefault {
+    HStack {
+        Text("Born for your Mac. Make Ora your default browser.")
+        Spacer()
+        Button("Set Ora as default") { 
+            DefaultBrowserManager.requestSetAsDefault() 
+        }
+    }
+}
+```
+
+<Note>
+  Setting Ora as your default browser requires macOS system permissions. You'll be prompted to confirm this change in System Settings.
+</Note>
+
+### Tab Management
+
+Ora includes intelligent tab management to preserve memory and performance.
+
+<Steps>
+  <Step title="Destroy Web Views After">
+    Controls when inactive tab web views are destroyed to free memory:
+    
+    ```swift
+Picker("", selection: $settings.tabAliveTimeout) {
+    Text("1 hour").tag(TimeInterval(60 * 60))
+    Text("6 hours").tag(TimeInterval(6 * 60 * 60))
+    Text("12 hours").tag(TimeInterval(12 * 60 * 60))
+    Text("1 day").tag(TimeInterval(24 * 60 * 60))
+    Text("2 days").tag(TimeInterval(2 * 24 * 60 * 60))
+    Text("Never").tag(TimeInterval(365 * 24 * 60 * 60))
+}
+```
+    
+    Options: 1 hour, 6 hours, 12 hours, 1 day, 2 days, or Never
+  </Step>
+  
+  <Step title="Remove Tabs Completely After">
+    Controls when tabs are completely removed from the tab bar:
+    
+    ```swift
+Picker("", selection: $settings.tabRemovalTimeout) {
+    Text("1 hour").tag(TimeInterval(60 * 60))
+    Text("6 hours").tag(TimeInterval(6 * 60 * 60))
+    Text("12 hours").tag(TimeInterval(12 * 60 * 60))
+    Text("1 day").tag(TimeInterval(24 * 60 * 60))
+    Text("2 days").tag(TimeInterval(2 * 24 * 60 * 60))
+    Text("Never").tag(TimeInterval(365 * 24 * 60 * 60))
+}
+```
+    
+    Options: Same as web view destruction timeout
+  </Step>
+  
+  <Step title="Maximum Recent Tabs">
+    Limits the number of recent tabs kept visible:
+    
+    ```swift
+Picker("", selection: $settings.maxRecentTabs) {
+    ForEach(1...10, id: \.self) { num in
+        Text("\(num)").tag(num)
+    }
+}
+```
+    
+    Range: 1-10 tabs (default: 5)
+  </Step>
+</Steps>
+
+<Warning>
+  Pinned and favorite tabs are **never** automatically removed, regardless of these settings.
+</Warning>
+
+### Auto Picture-in-Picture
+
+Enable automatic Picture-in-Picture mode when switching away from a tab with video:
+
+```swift
+Toggle("Auto Picture-in-Picture on tab switch", isOn: $settings.autoPiPEnabled)
+```
+
+Default: Enabled
+
+### Automatic Updates
+
+Control whether Ora checks for updates automatically:
+
+```swift
+Toggle("Automatically check for updates", isOn: $settings.autoUpdateEnabled)
+```
+
+You can manually check for updates at any time:
+
+```swift
+Button("Check for Updates") {
+    updateService.checkForUpdates()
+}
+```
+
+## Privacy & Security Settings
+
+Protect your browsing privacy with comprehensive tracking prevention.
+
+### Tracking Prevention
+
+Ora provides three levels of tracking protection:
+
+```swift
+Toggle("Block third-party trackers", isOn: $settings.blockThirdPartyTrackers)
+Toggle("Block fingerprinting", isOn: $settings.blockFingerprinting)
+Toggle("Ad Blocking", isOn: $settings.adBlocking)
+```
+
+<Accordion title="What each setting blocks">
+  - **Block third-party trackers**: Prevents cross-site tracking cookies and scripts
+  - **Block fingerprinting**: Blocks techniques that identify you by browser characteristics
+  - **Ad Blocking**: Removes advertisements and tracking pixels from web pages
+</Accordion>
+
+### Cookies Policy
+
+Control how Ora handles cookies:
+
+```swift
+enum CookiesPolicy: String, CaseIterable, Identifiable, Codable {
+    case allowAll = "Allow all"
+    case blockThirdParty = "Block third-party"
+    case blockAll = "Block all"
+    
+    var id: String {
+        rawValue
+    }
+}
+```
+
+<Tabs>
+  <Tab title="Allow All">
+    Accepts all cookies from all websites. Provides the best compatibility but least privacy protection.
+  </Tab>
+  <Tab title="Block Third-Party" default>
+    Blocks cookies from third-party domains (recommended). Balances privacy and functionality.
+  </Tab>
+  <Tab title="Block All">
+    Blocks all cookies. Maximum privacy but may break some website functionality.
+  </Tab>
+</Tabs>
+
+### Site Permissions
+
+Manage permissions for individual sites:
+
+```swift
+struct SitePermissionSettings: Codable, Hashable, Identifiable {
+    var id: String { host }
+    
+    let host: String
+    var camera: Bool
+    var microphone: Bool
+    var location: Bool
+    var notifications: Bool
+}
+```
+
+Permissions are stored per-site and include:
+- Camera access
+- Microphone access
+- Location services
+- Notifications
+
+## Keyboard Shortcuts
+
+Customize keyboard shortcuts for all browser actions. Ora provides shortcuts across 8 categories.
+
+### Shortcut Categories
+
+```swift
+enum SettingsTab: Hashable {
+    case general, spaces, privacySecurity, shortcuts, searchEngines
+    
+    var symbol: String {
+        switch self {
+        case .shortcuts: return "command"
+        // ...
+        }
+    }
+}
+```
+
+### Available Shortcut Categories
+
+<Accordion title="Tabs">
+  - New Tab: `⌘T`
+  - Close Tab: `⌘W`
+  - Restore Tab: `⌘Z`
+  - Reopen Closed Tab: `⇧⌘T`
+  - Next Tab: `⌃⇥`
+  - Previous Tab: `⇧⌃⇥`
+  - Move Tab Right: `⌥⌘→`
+  - Move Tab Left: `⌥⌘←`
+  - Pin Tab: `⌘D`
+  - Jump to Tab 1-9: `⌘1` through `⌘9`
+</Accordion>
+
+<Accordion title="Navigation">
+  - Back: `⌘[`
+  - Forward: `⌘]`
+  - Reload: `⌘R`
+  - Hard Reload: `⇧⌘R`
+</Accordion>
+
+<Accordion title="Window">
+  - New Window: `⌘N`
+  - New Private Window: `⇧⌘N`
+  - Close Window: `⇧⌘W`
+  - Fullscreen: `⌃⌘F`
+</Accordion>
+
+<Accordion title="Address Bar">
+  - Copy URL: `⇧⌘C`
+  - Focus Address Bar: `⌘L`
+</Accordion>
+
+<Accordion title="Edit">
+  - Find: `⌘F`
+  - Find Next: `⌘G`
+  - Find Previous: `⇧⌘G`
+</Accordion>
+
+<Accordion title="History">
+  - Show History: `⌘Y`
+</Accordion>
+
+<Accordion title="Zoom">
+  - Zoom In: `⌘+`
+  - Zoom Out: `⌘-`
+  - Reset Zoom: `⌘0`
+</Accordion>
+
+<Accordion title="Developer">
+  - Toggle DevTools: `⌥⌘I`
+  - Reload (Ignoring Cache): `⇧⌘R`
+</Accordion>
+
+<Accordion title="App">
+  - Quit: `⌘Q`
+  - Hide: `⌘H`
+  - Preferences: `⌘,`
+  - Toggle Sidebar: `⌘S`
+  - Toggle Toolbar: `⇧⌘D`
+</Accordion>
+
+### Customizing Shortcuts
+
+To customize a shortcut:
+
+<Steps>
+  <Step title="Click the shortcut button">
+    Click the keyboard shortcut display for the action you want to change
+  </Step>
+  
+  <Step title="Press new key combination">
+    With the shortcut in edit mode (highlighted with pulsing border), press your desired key combination
+  </Step>
+  
+  <Step title="Confirm or reset">
+    The new shortcut is saved automatically. To restore defaults, click "Reset to Default"
+  </Step>
+</Steps>
+
+The shortcut capture system:
+
+```swift
+private func handleKeyCapture(_ event: NSEvent) {
+    guard let editingShortcut else { return }
+    if KeyChord(fromEvent: event) != nil {
+        shortcutManager.setCustomShortcut(for: editingShortcut, event: event)
+        cancelEditing()
+    }
+}
+```
+
+### Shortcut Storage
+
+Custom shortcuts are persisted in `SettingsStore`:
+
+```swift
+@Published var customKeyboardShortcuts: [String: KeyChord] {
+    didSet { saveCodable(customKeyboardShortcuts, forKey: customKeyboardShortcutsKey) }
+}
+```
+
+## Search Engine Settings
+
+Manage search engines and customize your search experience.
+
+### Built-in Search Engines
+
+Ora includes popular search engines organized by type:
+
+```swift
+// Conventional Search Engines
+let conventionalEngines = searchEngineService.builtInSearchEngines.filter {
+    !$0.isAIChat
+}
+
+// AI Search Engines
+let aiEngines = searchEngineService.builtInSearchEngines.filter(\.isAIChat)
+```
+
+### Custom Search Engines
+
+Add custom search engines with the following structure:
+
+```swift
+struct CustomSearchEngine: Codable, Identifiable, Hashable {
+    let id: String
+    let name: String
+    let searchURL: String
+    let aliases: [String]
+    let faviconData: Data?
+    let faviconBackgroundColorData: Data?
+    let isAIChat: Bool
+}
+```
+
+### Adding a Custom Search Engine
+
+<Steps>
+  <Step title="Click 'Add Custom Engine'">
+    Opens the custom engine form in the Search settings
+  </Step>
+  
+  <Step title="Enter engine details">
+    - **Name**: Display name for the search engine
+    - **URL**: Search URL with `{query}` placeholder (e.g., `https://example.com/search?q={query}`)
+    - **Aliases**: Optional comma-separated shortcuts (e.g., `ddg, duck`)
+    - **Type**: Check "AI Chat Engine" if this is an AI assistant
+  </Step>
+  
+  <Step title="Save the engine">
+    Click Save to add the engine to your library
+  </Step>
+</Steps>
+
+```swift
+private func saveSearchEngine() {
+    let aliasesList = newEngineAliases
+        .split(separator: ",")
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+    
+    CustomSearchEngine.createWithFavicon(
+        name: newEngineName,
+        searchURL: newEngineURL,
+        aliases: aliasesList,
+        isAIChat: newEngineIsAI
+    ) { [weak settings] engine in
+        settings?.addCustomSearchEngine(engine)
+    }
+}
+```
+
+<Note>
+  The URL must contain `{query}` which will be replaced with the user's search term. Ora automatically fetches the favicon for custom engines.
+</Note>
+
+### Setting Default Search Engine
+
+Set a global default search engine that applies across all spaces:
+
+```swift
+@Published var globalDefaultSearchEngine: String? {
+    didSet { defaults.set(globalDefaultSearchEngine, forKey: globalDefaultSearchEngineKey) }
+}
+```
+
+Individual spaces can override the global default with their own preferences.
+
+### Per-Container Search Settings
+
+Each container (space) can have its own search engine preferences:
+
+```swift
+func defaultSearchEngineId(for containerId: UUID) -> String? {
+    defaults.string(forKey: keyForDefaultSearch(for: containerId))
+}
+
+func setDefaultSearchEngineId(_ id: String?, for containerId: UUID) {
+    defaults.set(id, forKey: keyForDefaultSearch(for: containerId))
+    objectWillChange.send()
+}
+```
+
+## Settings Storage
+
+All settings are stored using `UserDefaults` and the `SettingsStore` singleton:
+
+```swift
+class SettingsStore: ObservableObject {
+    static let shared = SettingsStore()
+    private let defaults = UserDefaults.standard
+    
+    // Settings are automatically persisted when changed
+    @Published var autoUpdateEnabled: Bool {
+        didSet { defaults.set(autoUpdateEnabled, forKey: autoUpdateKey) }
+    }
+}
+```
+
+### Complex Settings Storage
+
+Settings with complex types are encoded as JSON:
+
+```swift
+private func saveCodable(_ value: some Encodable, forKey key: String) {
+    let encoder = JSONEncoder()
+    if let data = try? encoder.encode(value) {
+        defaults.set(data, forKey: key)
+    }
+}
+
+private static func loadCodable<T: Decodable>(_ type: T.Type, key: String) -> T? {
+    let defaults = UserDefaults.standard
+    guard let data = defaults.data(forKey: key) else { return nil }
+    return try? JSONDecoder().decode(T.self, from: data)
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Performance" icon="gauge">
+    Enable tab cleanup to maintain browser performance with the default 1-hour web view timeout
+  </Card>
+  
+  <Card title="Privacy" icon="shield">
+    Use "Block third-party" cookies policy and enable all tracking prevention options
+  </Card>
+  
+  <Card title="Productivity" icon="bolt">
+    Customize keyboard shortcuts for your most common actions to speed up your workflow
+  </Card>
+  
+  <Card title="Organization" icon="folder">
+    Use per-space search engine settings to match search providers to specific workflows
+  </Card>
+</CardGroup>

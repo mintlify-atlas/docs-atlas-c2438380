@@ -1,0 +1,351 @@
+---
+title: Privacy and Security
+description: Browse privately with built-in content blocking, private browsing, and granular data controls
+icon: shield-check
+---
+
+Ora Browser is built with privacy as a core principle. From private browsing mode to per-space data isolation, Ora gives you complete control over your browsing data and privacy.
+
+## Private Browsing Mode
+
+Private browsing in Ora uses in-memory storage that is never persisted to disk. When you close a private window, all data is immediately discarded.
+
+### Opening a Private Window
+
+Use `⌘⇧N` to open a new private browsing window.
+
+```swift
+// Private tabs use non-persistent data stores
+let config = TabScriptHandler()
+self.webView = WKWebView(
+    frame: .zero,
+    configuration: config.customWKConfig(
+        containerId: container.id,
+        temporaryStorage: isPrivate  // Uses in-memory storage when true
+    )
+)
+```
+
+### What's Protected in Private Mode
+
+<CardGroup cols={2}>
+  <Card title="No History" icon="clock">
+    Browsing history is not recorded and won't appear in your history or Quick Launcher suggestions
+  </Card>
+  
+  <Card title="In-Memory Cookies" icon="cookie-bite">
+    Cookies and site data are stored in memory only and deleted when the window closes
+  </Card>
+  
+  <Card title="No Downloads History" icon="download">
+    Downloaded files aren't tracked in your downloads history
+  </Card>
+  
+  <Card title="Temporary Storage" icon="database">
+    All website data uses WebKit's non-persistent data store
+  </Card>
+</CardGroup>
+
+```swift
+if temporaryStorage {
+    configuration.websiteDataStore = WKWebsiteDataStore.nonPersistent()
+} else {
+    configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: containerId)
+}
+```
+
+<Note>
+Private browsing mode in Ora uses WebKit's `nonPersistent()` data store, ensuring all data is kept in memory and never written to disk.
+</Note>
+
+## Space-Based Data Isolation
+
+Each Space maintains completely isolated browsing data, including cookies, cache, and website storage.
+
+### How It Works
+
+Ora uses WebKit's data store isolation feature to create separate data containers for each Space:
+
+```swift
+@Model
+class TabContainer: ObservableObject, Identifiable {
+    var id: UUID
+    var name: String
+    var emoji: String
+    
+    @Relationship(deleteRule: .cascade) var tabs: [Tab] = []
+    @Relationship(deleteRule: .cascade) var folders: [Folder] = []
+    @Relationship() var history: [History] = []
+}
+```
+
+Each Space's tabs use a data store identified by the container's unique ID:
+
+```swift
+configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: containerId)
+```
+
+### Benefits of Data Isolation
+
+<Steps>
+  <Step title="Separate Login Sessions">
+    Log into the same service with different accounts in different Spaces—perfect for managing multiple work accounts
+  </Step>
+  
+  <Step title="Context-Specific Cookies">
+    Cookies set in one Space don't affect other Spaces, preventing cross-context tracking
+  </Step>
+  
+  <Step title="Independent Storage">
+    LocalStorage, IndexedDB, and other web storage APIs are isolated per Space
+  </Step>
+</Steps>
+
+## Privacy Service
+
+Ora provides a powerful `PrivacyService` for managing browsing data at both the Space and site level.
+
+### Clear All Data for a Space
+
+```swift
+class PrivacyService {
+    static func clearCache(_ container: TabContainer, completion: (() -> Void)? = nil) {
+        let types: Set<String> = WKWebsiteDataStore.allWebsiteDataTypes()
+        self.clearData(container, types, completion)
+    }
+    
+    static func clearCookies(_ container: TabContainer, completion: (() -> Void)? = nil) {
+        let types: Set<String> = [WKWebsiteDataTypeCookies]
+        self.clearData(container, types, completion)
+    }
+    
+    private static func clearData(_ container: TabContainer, _ types: Set<String>, _ completion: (() -> Void)?) {
+        let dataStore = WKWebsiteDataStore(forIdentifier: container.id)
+        dataStore.removeData(
+            ofTypes: types,
+            modifiedSince: .distantPast
+        ) {
+            completion?()
+        }
+    }
+}
+```
+
+### Clear Data for Specific Sites
+
+Target individual websites for data removal:
+
+```swift
+static func clearCookiesForHost(for host: String, container: TabContainer, completion: (() -> Void)? = nil) {
+    let dataStore = WKWebsiteDataStore(forIdentifier: container.id)
+    let types: Set<String> = [WKWebsiteDataTypeCookies]
+    
+    dataStore.fetchDataRecords(ofTypes: types) { records in
+        let targetRecords = records.filter { $0.displayName.contains(host) }
+        guard !targetRecords.isEmpty else {
+            completion?()
+            return
+        }
+        
+        dataStore.removeData(ofTypes: types, for: targetRecords) {
+            completion?()
+        }
+    }
+}
+```
+
+### Clear Cache for Specific Sites
+
+```swift
+static func clearCacheForHost(for host: String, container: TabContainer, completion: (() -> Void)? = nil) {
+    let dataStore = WKWebsiteDataStore(forIdentifier: container.id)
+    let types: Set<String> = WKWebsiteDataStore.allWebsiteDataTypes()
+    
+    dataStore.fetchDataRecords(ofTypes: types) { records in
+        let targetRecords = records.filter { $0.displayName.contains(host) }
+        guard !targetRecords.isEmpty else {
+            completion?()
+            return
+        }
+        
+        dataStore.removeData(ofTypes: types, for: targetRecords) {
+            completion?()
+        }
+    }
+}
+```
+
+## Cookie Management
+
+Control how Ora handles cookies with flexible cookie policies.
+
+### Cookie Policies
+
+```swift
+enum CookiesPolicy: String, CaseIterable, Identifiable, Codable {
+    case allowAll = "Allow all"
+    case blockThirdParty = "Block third-party"
+    case blockAll = "Block all"
+    
+    var id: String { rawValue }
+}
+```
+
+<Accordion title="Cookie Policy Options">
+  **Allow All**
+  - Accept all cookies from all websites
+  - Best compatibility with all sites
+  - May allow more tracking
+  
+  **Block Third-Party** (Recommended)
+  - Allow cookies from sites you visit directly
+  - Block cookies from third-party domains (ads, trackers)
+  - Good balance of privacy and compatibility
+  
+  **Block All**
+  - Reject all cookies
+  - Maximum privacy protection
+  - May break functionality on some websites
+</Accordion>
+
+### Managing Cookie Settings
+
+```swift
+@Published var cookiesPolicy: CookiesPolicy {
+    didSet { defaults.set(cookiesPolicy.rawValue, forKey: cookiesPolicyKey) }
+}
+```
+
+## Quick Actions for Privacy
+
+### Keyboard Shortcuts
+
+Ora provides convenient keyboard shortcuts for common privacy actions:
+
+| Action | Shortcut |
+|--------|----------|
+| New Private Window | `⌘⇧N` |
+| Clear Cache & Reload | `⌘⇧R` |
+| Clear Cookies & Reload | `⌘⌥⇧R` |
+
+### Menu Commands
+
+Access privacy features from the Navigation menu:
+
+```swift
+CommandMenu("Navigation") {
+    Button("Clear Cache & Reload") {
+        NotificationCenter.default.post(name: .clearCacheAndReload, object: NSApp.keyWindow)
+    }
+    .keyboardShortcut("r", modifiers: [.command, .shift])
+    
+    Button("Clear Cookies & Reload") {
+        NotificationCenter.default.post(name: .clearCookiesAndReload, object: NSApp.keyWindow)
+    }
+    .keyboardShortcut("r", modifiers: [.command, .option, .shift])
+}
+```
+
+## Developer Tools
+
+### Web Inspector
+
+Ora enables WebKit's developer tools for debugging and inspection:
+
+```swift
+configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
+```
+
+<Note>
+Developer extras are enabled by default in Ora, allowing you to inspect any page by right-clicking and selecting "Inspect Element".
+</Note>
+
+### Inspectable WebViews
+
+All WebViews are marked as inspectable for external debugging tools:
+
+```swift
+webView.isInspectable = true
+```
+
+## Content Security
+
+### JavaScript Security
+
+Ora enables modern JavaScript features while maintaining security:
+
+```swift
+configuration.preferences.setValue(true, forKey: "javaScriptEnabled")
+configuration.preferences.setValue(true, forKey: "javaScriptCanOpenWindowsAutomatically")
+
+// But prevent automatic window opening for security
+configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
+```
+
+### Secure Content Delivery
+
+WebViews are configured with security best practices:
+
+```swift
+let preferences = WKWebpagePreferences()
+preferences.allowsContentJavaScript = true
+configuration.defaultWebpagePreferences = preferences
+```
+
+## Privacy Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Spaces for Separation" icon="layer-group">
+    Create separate Spaces for different contexts to prevent cross-site tracking and maintain separate login sessions
+  </Card>
+  
+  <Card title="Regular Data Cleanup" icon="broom">
+    Periodically clear cache and cookies for Spaces you use for sensitive browsing
+  </Card>
+  
+  <Card title="Private Windows for Sensitive Tasks" icon="eye-slash">
+    Use private browsing windows for banking, healthcare, or other sensitive activities
+  </Card>
+  
+  <Card title="Review Site Permissions" icon="shield-halved">
+    Regularly audit which sites have access to camera, microphone, and location permissions
+  </Card>
+</CardGroup>
+
+## Advanced Privacy Features
+
+### Passkey Support
+
+Ora supports WebAuthn and passkeys for secure, password-less authentication.
+
+### Picture-in-Picture Privacy
+
+When switching tabs, Ora can automatically pause or continue media in Picture-in-Picture mode:
+
+```swift
+func togglePiP(_ currentTab: Tab?, _ oldTab: Tab?) {
+    if currentTab?.id != oldTab?.id, SettingsStore.shared.autoPiPEnabled {
+        currentTab?.webView.evaluateJavaScript("window.__oraTriggerPiP(true)")
+        oldTab?.webView.evaluateJavaScript("window.__oraTriggerPiP()")
+    }
+}
+```
+
+### Favicon Privacy
+
+Favicons are cached locally to prevent tracking through repeated favicon requests:
+
+```swift
+var faviconDirectory: URL {
+    let dir = urls(for: .cachesDirectory, in: .userDomainMask).first!
+        .appendingPathComponent("Favicons")
+    if !fileExists(atPath: dir.path) {
+        try? createDirectory(at: dir, withIntermediateDirectories: true)
+    }
+    return dir
+}
+```
+
+<Warning>
+While Ora provides strong privacy protections, no browser can guarantee complete anonymity. For maximum privacy, consider using a VPN or Tor in addition to Ora's privacy features.
+</Warning>

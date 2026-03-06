@@ -1,0 +1,452 @@
+---
+title: Session Management
+description: Restore tabs, manage browsing sessions, and recover closed tabs
+icon: clock-rotate-left
+---
+
+Ora Browser provides robust session management features to help you restore closed tabs, recover from crashes, and maintain your browsing context.
+
+## Tab Restoration
+
+Recover accidentally closed tabs with built-in undo functionality.
+
+### Restore Last Closed Tab
+
+<Steps>
+  <Step title="Close a Tab">
+    Close any tab using **⌘W** or the close button
+  </Step>
+  <Step title="Restore Immediately">
+    Press **⌘Z** to restore the last closed tab
+  </Step>
+  <Step title="Multiple Undos">
+    Press **⌘Z** multiple times to restore multiple closed tabs in reverse order
+  </Step>
+</Steps>
+
+```swift
+// From OraCommands.swift:46-49
+Button("Restore Last Tab") {
+    NotificationCenter.default.post(name: .restoreLastTab, object: NSApp.keyWindow)
+}
+.keyboardShortcut(KeyboardShortcuts.Tabs.restore.keyboardShortcut)
+```
+
+<Note>
+  The restore command uses **⌘Z**, leveraging the system's undo mechanism for intuitive recovery.
+</Note>
+
+### Restore Implementation
+
+Tab restoration is powered by SwiftData's undo manager:
+
+```swift
+// From TabManager.swift:352-356
+func restoreLastTab() {
+    guard let undoManager = modelContext.undoManager else { return }
+    undoManager.undo() // Reverts the last deletion
+    try? modelContext.save() // Persist the undo operation
+}
+```
+
+### Alternative Restore Method
+
+You can also use the dedicated keyboard shortcut:
+
+```swift
+// From KeyboardShortcuts.swift:20-25
+static let restore = KeyboardShortcutDefinition(
+    id: "tabs.restore",
+    name: "Restore Tab",
+    category: "Tabs",
+    defaultChord: KeyChord(keyEquivalent: .init("z"), modifiers: [.command])
+)
+```
+
+Or reopen with:
+
+```swift
+// From KeyboardShortcuts.swift:26-31
+static let reopenClosed = KeyboardShortcutDefinition(
+    id: "tabs.reopenClosed",
+    name: "Reopen Closed Tab",
+    category: "Tabs",
+    defaultChord: KeyChord(keyEquivalent: .init("t"), modifiers: [.command, .shift])
+)
+```
+
+## Keyboard Shortcuts
+
+<CardGroup cols={2}>
+  <Card title="Restore Last Tab" icon="arrow-rotate-left">
+    **⌘Z** - Undo tab closure
+  </Card>
+  <Card title="Reopen Closed Tab" icon="clock-rotate-left">
+    **⌘⇧T** - Alternative restore method
+  </Card>
+  <Card title="Close Tab" icon="xmark">
+    **⌘W** - Close current tab
+  </Card>
+  <Card title="Close Window" icon="window-restore">
+    Closes the window if the Settings window is active
+  </Card>
+</CardGroup>
+
+## Window Management
+
+Manage multiple windows and their sessions.
+
+### Close Behavior
+
+```swift
+// From OraCommands.swift:33-42
+Button("Close Window") {
+    if let keyWindow = NSApp.keyWindow, keyWindow.title == "Settings" {
+        keyWindow.performClose(nil)
+    }
+}
+.keyboardShortcut("w", modifiers: .command)
+.disabled({
+    guard let keyWindow = NSApp.keyWindow else { return true }
+    return keyWindow.title != "Settings"
+}())
+```
+
+<Note>
+  The close window command intelligently handles different window types, with special handling for the Settings window.
+</Note>
+
+### Creating New Windows
+
+<Tabs>
+  <Tab title="Normal Window">
+    ```swift
+    // From OraCommands.swift:13-14
+    Button("New Window") { openWindow(id: "normal") }
+        .keyboardShortcut(KeyboardShortcuts.Window.new.keyboardShortcut)
+    ```
+    
+    Press **⌘N** to open a new window with your default settings.
+  </Tab>
+  <Tab title="Private Window">
+    ```swift
+    // From OraCommands.swift:16-17
+    Button("New Private Window") { openWindow(id: "private") }
+        .keyboardShortcut(KeyboardShortcuts.Window.newPrivate.keyboardShortcut)
+    ```
+    
+    Press **⌘⇧N** to open a private browsing window that doesn't save history.
+  </Tab>
+</Tabs>
+
+## Tab Lifecycle
+
+### Tab Closing
+
+```swift
+// From OraCommands.swift:29-31
+Button("Close Tab") {
+    NotificationCenter.default.post(name: .closeActiveTab, object: NSApp.keyWindow)
+}
+.keyboardShortcut(KeyboardShortcuts.Tabs.close.keyboardShortcut)
+```
+
+When you close a tab:
+
+1. **Tab is marked for deletion** in the model context
+2. **Undo manager records** the deletion operation
+3. **UI updates** to remove the tab
+4. **State is preserved** for potential restoration
+
+### Tab Activation
+
+When switching tabs, the session state is preserved:
+
+```swift
+// From TabManager.swift:365-390
+func activateTab(_ tab: Tab) {
+    // Toggle Picture-in-Picture on tab switch
+    togglePiP(tab, activeTab)
+
+    // Activate the tab
+    activeTab?.maybeIsActive = false
+    activeTab = tab
+    activeTab?.maybeIsActive = true
+    tab.lastAccessedAt = Date()
+    activeContainer = tab.container
+    tab.container.lastAccessedAt = Date()
+
+    // Lazy load WebView if not ready
+    if !tab.isWebViewReady {
+        tab.restoreTransientState(
+            historyManager: tab.historyManager ?? HistoryManager(
+                modelContainer: modelContainer,
+                modelContext: modelContext
+            ),
+            downloadManager: tab.downloadManager ?? DownloadManager(
+                modelContainer: modelContainer,
+                modelContext: modelContext
+            ),
+            tabManager: self,
+            isPrivate: tab.isPrivate
+        )
+    }
+}
+```
+
+## Session Persistence
+
+Ora Browser automatically saves your session state:
+
+### What's Saved
+
+- **Open tabs** and their URLs
+- **Tab order** and organization
+- **Active tab** selection
+- **Window positions** and sizes
+- **Container assignments** for tabs
+- **Pinned tab** states
+
+### What's Not Saved (Private Mode)
+
+- **Browsing history** in private windows
+- **Cookies and cache** from private sessions
+- **Form data** entered in private tabs
+- **Download history** from private browsing
+
+<Warning>
+  Private browsing windows are not restored after the app is closed. This is intentional to maintain privacy.
+</Warning>
+
+## Lazy Tab Loading
+
+Tabs are loaded on-demand to improve startup performance:
+
+```swift
+// From TabManager.swift:377-390
+// Lazy load WebView if not ready
+if !tab.isWebViewReady {
+    tab.restoreTransientState(
+        historyManager: tab.historyManager ?? HistoryManager(
+            modelContainer: modelContainer,
+            modelContext: modelContext
+        ),
+        downloadManager: tab.downloadManager ?? DownloadManager(
+            modelContainer: modelContainer,
+            modelContext: modelContext
+        ),
+        tabManager: self,
+        isPrivate: tab.isPrivate
+    )
+}
+```
+
+### Benefits
+
+<CardGroup cols={2}>
+  <Card title="Faster Startup" icon="gauge-high">
+    Only the active tab loads immediately
+  </Card>
+  <Card title="Lower Memory" icon="memory">
+    Inactive tabs don't consume memory
+  </Card>
+  <Card title="Quick Switch" icon="arrows-left-right">
+    Tabs load instantly when activated
+  </Card>
+  <Card title="Better Performance" icon="rocket">
+    System resources used efficiently
+  </Card>
+</CardGroup>
+
+## Picture-in-Picture Session
+
+Picture-in-Picture automatically manages media sessions when switching tabs:
+
+```swift
+// From TabManager.swift:358-363
+func togglePiP(_ currentTab: Tab?, _ oldTab: Tab?) {
+    if currentTab?.id != oldTab?.id, SettingsStore.shared.autoPiPEnabled {
+        currentTab?.webView.evaluateJavaScript("window.__oraTriggerPiP(true)")
+        oldTab?.webView.evaluateJavaScript("window.__oraTriggerPiP()")
+    }
+}
+```
+
+<Note>
+  When auto-PiP is enabled, switching away from a tab with playing video automatically opens Picture-in-Picture mode.
+</Note>
+
+## Container Sessions
+
+Tabs are organized into containers with independent sessions:
+
+### Container Benefits
+
+<Steps>
+  <Step title="Isolated Contexts">
+    Each container maintains separate cookies, cache, and session data
+  </Step>
+  <Step title="Different Search Engines">
+    Set container-specific default search engines
+  </Step>
+  <Step title="Organized Tabs">
+    Group related tabs by context (Personal, Work, etc.)
+  </Step>
+  <Step title="Session Restoration">
+    Restore entire container sessions
+  </Step>
+</Steps>
+
+### Container Activation
+
+```swift
+// From TabManager.swift:374-375
+activeContainer = tab.container
+tab.container.lastAccessedAt = Date()
+```
+
+When you activate a tab, its container becomes active, providing context-aware behavior.
+
+## Best Practices
+
+### Preventing Data Loss
+
+<Accordion title="Use Tab Pinning">
+  Pin important tabs to prevent accidental closure:
+  - Press **⌘D** to pin/unpin a tab
+  - Pinned tabs are preserved across sessions
+  - They appear first in the tab bar
+</Accordion>
+
+<Accordion title="Regular Saves">
+  Ora Browser automatically saves session state:
+  - After each tab operation
+  - When switching windows
+  - Periodically in the background
+  - When quitting the application
+</Accordion>
+
+<Accordion title="Container Organization">
+  Organize tabs into containers for better session management:
+  - Create containers for different projects
+  - Use container-specific settings
+  - Restore entire container contexts
+</Accordion>
+
+### Recovery Strategies
+
+<Tabs>
+  <Tab title="Immediate Recovery">
+    **For just-closed tabs:**
+    1. Press **⌘Z** immediately
+    2. Or use **⌘⇧T** to reopen
+    3. Multiple undos are supported
+  </Tab>
+  <Tab title="Session Recovery">
+    **After a crash or force-quit:**
+    1. Restart Ora Browser
+    2. Your session is automatically restored
+    3. All tabs (except private) are recovered
+    4. Navigate to **History** to find specific tabs
+  </Tab>
+  <Tab title="History Search">
+    **For older closed tabs:**
+    1. Press **⌘Y** to open History
+    2. Search for the page you need
+    3. Click to reopen in a new tab
+  </Tab>
+</Tabs>
+
+## Command Menu Integration
+
+Session management is integrated into the command menu:
+
+```swift
+// From OraCommands.swift:19-21
+Button("New Tab") {
+    NotificationCenter.default.post(name: .showLauncher, object: NSApp.keyWindow)
+}.keyboardShortcut(KeyboardShortcuts.Tabs.new.keyboardShortcut)
+```
+
+### Available Commands
+
+| Command | Shortcut | Description |
+|---------|----------|-------------|
+| New Tab | **⌘T** | Opens launcher for new tab |
+| Close Tab | **⌘W** | Closes current tab |
+| Restore Tab | **⌘Z** | Undoes last tab closure |
+| Reopen Closed | **⌘⇧T** | Alternative restore |
+| New Window | **⌘N** | Opens new window |
+| New Private | **⌘⇧N** | Opens private window |
+
+## Advanced Session Features
+
+### Undo Manager
+
+The session system uses SwiftData's built-in undo manager:
+
+```swift
+guard let undoManager = modelContext.undoManager else { return }
+undoManager.undo() // Reverts the last deletion
+try? modelContext.save() // Persist the undo operation
+```
+
+This provides:
+- **Multiple undo levels** for tab closures
+- **Automatic state tracking** without manual implementation
+- **Efficient memory usage** with system-managed undo stack
+- **Integration with macOS** standard undo behavior
+
+### Tab State Persistence
+
+Each tab maintains its state even when inactive:
+
+- **URL and title** are always available
+- **Scroll position** preserved
+- **Form data** retained (except in private mode)
+- **JavaScript state** maintained
+- **Media playback position** saved
+
+### Performance Optimizations
+
+<CardGroup cols={2}>
+  <Card title="Lazy Loading" icon="clock">
+    Tabs load only when needed, not at startup
+  </Card>
+  <Card title="Memory Management" icon="microchip">
+    Inactive tabs release memory automatically
+  </Card>
+  <Card title="Smart Restoration" icon="brain">
+    Frequently used tabs load first
+  </Card>
+  <Card title="Background Sync" icon="rotate">
+    Session state syncs without blocking UI
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### Tab Won't Restore
+
+- Ensure you're pressing **⌘Z** shortly after closing
+- Check if the undo stack has been cleared
+- Verify the tab wasn't from a private window
+- Try using **⌘⇧T** as an alternative
+
+### Session Not Restored After Restart
+
+- Check if you force-quit during a save operation
+- Verify that the app has write permissions
+- Look for tabs in **History** (**⌘Y**)
+- Ensure you're not in private browsing mode
+
+### Multiple Tabs Restore Incorrectly
+
+- Tabs restore in reverse order of closure
+- Press **⌘Z** multiple times for multiple tabs
+- Check container assignments for organization
+- Verify that tab data wasn't corrupted
+
+<Warning>
+  While the undo stack is robust, it's cleared when you quit the application. For long-term session recovery, use the History feature (**⌘Y**).
+</Warning>

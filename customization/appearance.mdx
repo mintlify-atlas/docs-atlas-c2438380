@@ -1,0 +1,497 @@
+---
+title: Appearance Customization
+description: Customize Ora Browser's visual appearance with light, dark, and auto themes
+---
+
+Ora Browser provides a beautiful, native macOS appearance with support for light and dark themes. The appearance system is built using SwiftUI and integrates seamlessly with macOS system preferences.
+
+## Appearance Modes
+
+Ora supports three appearance modes:
+
+<CardGroup cols={3}>
+  <Card title="Light" icon="sun.max">
+    Bright, clean interface optimized for daytime use
+  </Card>
+  <Card title="Dark" icon="moon">
+    Dark theme that's easy on the eyes in low-light conditions
+  </Card>
+  <Card title="Auto" icon="circle.lefthalf.filled">
+    Follows macOS system appearance (recommended)
+  </Card>
+</CardGroup>
+
+## Changing Appearance
+
+The appearance selector is located in **General Settings** (`⌘,`).
+
+### Appearance Selector UI
+
+The appearance selector displays visual previews of each theme:
+
+```swift
+struct AppearanceSelector: View {
+    @Binding var selection: AppAppearance
+    @Environment(\.theme) var theme
+    
+    private var options: [Option] {
+        [
+            .init(appearance: .light, imageName: "appearance-light", title: "Light"),
+            .init(appearance: .dark, imageName: "appearance-dark", title: "Dark"),
+            .init(appearance: .system, imageName: "appearance-system", title: "Auto")
+        ]
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Appearance").foregroundStyle(.secondary)
+            HStack(spacing: 16) {
+                ForEach(options) { opt in
+                    let isSelected = selection == opt.appearance
+                    Button {
+                        selection = opt.appearance
+                    } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Image(opt.imageName)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 105, height: 68)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            Text(opt.title)
+                                .fontWeight(isSelected ? .semibold : .regular)
+                        }
+                        .padding(6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(isSelected ? theme.foreground.opacity(0.12) : Color.clear)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+```
+
+<Note>
+  The selected appearance option is visually highlighted with a subtle background and bold text.
+</Note>
+
+## Appearance Manager
+
+Appearance is controlled by the `AppearanceManager` singleton:
+
+```swift
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system = "System"
+    case light = "Light"
+    case dark = "Dark"
+    
+    var id: String {
+        rawValue
+    }
+}
+
+class AppearanceManager: ObservableObject {
+    static let shared = AppearanceManager()
+    
+    @AppStorage("ui.app.appearance") var appearance: AppAppearance = .system {
+        didSet {
+            updateAppearance()
+        }
+    }
+    
+    func updateAppearance() {
+        guard NSApp != nil else {
+            print("NSApp is nil, skipping appearance update")
+            return
+        }
+        switch appearance {
+        case .system:
+            NSApp.appearance = nil
+        case .light:
+            NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark:
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
+    }
+}
+```
+
+### How It Works
+
+<Steps>
+  <Step title="User selects appearance">
+    Selection is bound to `AppearanceManager.shared.appearance`
+  </Step>
+  
+  <Step title="Setting is persisted">
+    `@AppStorage` automatically saves the preference to UserDefaults with key `"ui.app.appearance"`
+  </Step>
+  
+  <Step title="Appearance updates">
+    The `didSet` observer calls `updateAppearance()` which applies the macOS appearance
+  </Step>
+  
+  <Step title="UI refreshes">
+    SwiftUI automatically rebuilds the interface with the new theme
+  </Step>
+</Steps>
+
+## Theme System
+
+Ora uses a comprehensive theme system that adapts colors based on the current color scheme.
+
+### Theme Structure
+
+```swift
+struct Theme: Equatable {
+    let colorScheme: ColorScheme
+    
+    var primary: Color {
+        Color(hex: "#f3e5d6")
+    }
+    
+    var primaryDark: Color {
+        Color(hex: "#141414")
+    }
+    
+    var accent: Color {
+        Color(hex: "#FF5F57")
+    }
+    
+    var background: Color {
+        colorScheme == .dark ? Color(hex: "#0F0E0E") : .white
+    }
+    
+    var foreground: Color {
+        colorScheme == .dark ? .white : .black
+    }
+}
+```
+
+### Core Colors
+
+<Tabs>
+  <Tab title="Brand Colors">
+    ```swift
+    var primary: Color {
+        Color(hex: "#f3e5d6")  // Warm cream
+    }
+    
+    var primaryDark: Color {
+        Color(hex: "#141414")  // Deep charcoal
+    }
+    
+    var accent: Color {
+        Color(hex: "#FF5F57")  // Vibrant red
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Adaptive Colors">
+    ```swift
+    var background: Color {
+        colorScheme == .dark ? Color(hex: "#0F0E0E") : .white
+    }
+    
+    var foreground: Color {
+        colorScheme == .dark ? .white : .black
+    }
+    
+    var mutedForeground: Color {
+        .secondary
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Window Colors">
+    ```swift
+    var subtleWindowBackgroundColor: Color {
+        colorScheme == .dark 
+            ? self.primaryDark.opacity(0.3) 
+            : self.primary.opacity(0.3)
+    }
+    
+    var solidWindowBackgroundColor: Color {
+        colorScheme == .dark ? self.primaryDark : self.primary
+    }
+    
+    var invertedSolidWindowBackgroundColor: Color {
+        colorScheme == .dark ? self.primary : self.primaryDark
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### UI Component Colors
+
+```swift
+var activeTabBackground: Color {
+    colorScheme == .dark 
+        ? .white.opacity(0.15) 
+        : self.primaryDark.opacity(0.8)
+}
+
+var mutedBackground: Color {
+    colorScheme == .dark 
+        ? .white.opacity(0.17) 
+        : self.primaryDark.opacity(0.1)
+}
+
+var popoverBackground: Color {
+    colorScheme == .dark ? Color(hex: "#242424") : .white
+}
+
+var popoverMutedBackground: Color {
+    colorScheme == .dark 
+        ? Color(hex: "#1d1d1d") 
+        : self.primaryDark.opacity(0.1)
+}
+```
+
+### Status Colors
+
+Ora includes semantic colors for status indicators:
+
+```swift
+var destructive: Color {
+    Color(hex: "#FF6969")
+}
+
+var success: Color {
+    Color(hex: "#93DA97")
+}
+
+var warning: Color {
+    Color(hex: "#FFBF78")
+}
+
+var info: Color {
+    Color(hex: "#799EFF")
+}
+```
+
+<CardGroup cols={4}>
+  <Card title="Destructive" icon="xmark.circle">
+    `#FF6969` - For delete, remove, or dangerous actions
+  </Card>
+  <Card title="Success" icon="checkmark.circle">
+    `#93DA97` - For successful operations and confirmations
+  </Card>
+  <Card title="Warning" icon="exclamationmark.triangle">
+    `#FFBF78` - For warnings and cautions
+  </Card>
+  <Card title="Info" icon="info.circle">
+    `#799EFF` - For informational messages
+  </Card>
+</CardGroup>
+
+### Search Engine Brand Colors
+
+The theme includes colors for popular search engines and services:
+
+```swift
+var grok: Color {
+    colorScheme == .dark ? .white : .black
+}
+
+var claude: Color {
+    Color(hex: "#d97757")
+}
+
+var openai: Color {
+    colorScheme == .dark ? .white : .black
+}
+
+var perplexity: Color {
+    Color(hex: "#20808D")
+}
+
+var google: Color {
+    .blue
+}
+
+var youtube: Color {
+    Color(hex: "#FC0D1B")
+}
+
+var github: Color {
+    colorScheme == .dark ? .white : Color(hex: "#181717")
+}
+```
+
+## Using the Theme System
+
+### Accessing Theme in Views
+
+The theme is available via SwiftUI's environment:
+
+```swift
+struct MyView: View {
+    @Environment(\.theme) var theme
+    
+    var body: some View {
+        Text("Hello, World!")
+            .foregroundColor(theme.foreground)
+            .background(theme.background)
+    }
+}
+```
+
+### Theme Provider
+
+The `ThemeProvider` modifier injects the theme into the environment:
+
+```swift
+struct ThemeProvider: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+    
+    func body(content: Content) -> some View {
+        content.environment(\.theme, Theme(colorScheme: colorScheme))
+    }
+}
+```
+
+Apply it to your root view:
+
+```swift
+ContentView()
+    .modifier(ThemeProvider())
+```
+
+### Custom Theme Key
+
+```swift
+private struct ThemeKey: EnvironmentKey {
+    static let defaultValue = Theme(colorScheme: .light)
+}
+
+extension EnvironmentValues {
+    var theme: Theme {
+        get { self[ThemeKey.self] }
+        set { self[ThemeKey.self] = newValue }
+    }
+}
+```
+
+## Appearance Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Auto Mode" icon="wand.and.stars">
+    The Auto appearance mode provides the best experience by matching your system settings and adapting to time of day
+  </Card>
+  
+  <Card title="Test Both Themes" icon="paintbrush">
+    When customizing UI components, test in both light and dark modes to ensure proper contrast and readability
+  </Card>
+  
+  <Card title="Use Theme Colors" icon="eyedropper">
+    Always use `theme.foreground`, `theme.background`, etc. instead of hardcoded colors for consistent theming
+  </Card>
+  
+  <Card title="Respect Accessibility" icon="accessibility">
+    The theme system uses macOS semantic colors (like `.secondary`) that respect accessibility settings
+  </Card>
+</CardGroup>
+
+## Custom Colors
+
+When you need to use custom hex colors, use the `Color(hex:)` initializer:
+
+```swift
+Color(hex: "#FF5F57")  // Converts hex string to SwiftUI Color
+```
+
+<Warning>
+  Avoid using custom colors for text and backgrounds. Instead, use theme colors that automatically adapt to light and dark modes.
+</Warning>
+
+## Appearance Persistence
+
+The selected appearance is automatically saved using `@AppStorage`:
+
+```swift
+@AppStorage("ui.app.appearance") var appearance: AppAppearance = .system
+```
+
+This ensures your appearance preference persists across app launches.
+
+## Dynamic Color Adaptation
+
+Many theme colors adapt based on the color scheme:
+
+```swift
+// Example: Tab backgrounds change based on theme
+var activeTabBackground: Color {
+    colorScheme == .dark 
+        ? .white.opacity(0.15)           // Light overlay in dark mode
+        : self.primaryDark.opacity(0.8)  // Dark overlay in light mode
+}
+```
+
+This pattern ensures optimal contrast in both light and dark modes.
+
+## Advanced Theming
+
+### Launcher Colors
+
+```swift
+var launcherMainBackground: Color {
+    colorScheme == .dark 
+        ? Color(.windowBackgroundColor).opacity(0.7) 
+        : .white.opacity(0.8)
+}
+```
+
+The launcher (command palette) uses semi-transparent backgrounds that adapt to the theme.
+
+### Border and Separator Colors
+
+```swift
+var border: Color {
+    Color(.separatorColor)
+}
+
+var placeholder: Color {
+    Color(.placeholderTextColor)
+}
+```
+
+These use macOS system colors that automatically adapt to the appearance and respect user accessibility settings.
+
+## Troubleshooting
+
+<Accordion title="Appearance not changing">
+  If the appearance doesn't change immediately:
+  
+  1. Check that `NSApp` is not nil when `updateAppearance()` is called
+  2. Verify the appearance is being saved to UserDefaults
+  3. Restart the app to ensure a clean state
+  
+  The appearance manager includes a safety check:
+  ```swift
+  guard NSApp != nil else {
+      print("NSApp is nil, skipping appearance update")
+      return
+  }
+  ```
+</Accordion>
+
+<Accordion title="Custom colors not adapting">
+  If custom UI elements don't adapt to theme changes:
+  
+  1. Ensure you're using `@Environment(\.theme)` to access the theme
+  2. Use theme colors instead of hardcoded colors
+  3. Apply `ThemeProvider` modifier to the root view
+  4. Check that the view is being rebuilt when the theme changes
+</Accordion>
+
+<Accordion title="Auto mode not following system">
+  If Auto mode doesn't track system appearance:
+  
+  1. Verify System Preferences > General > Appearance is set correctly
+  2. Check that the app has permission to read system appearance
+  3. Ensure `NSApp.appearance = nil` is being set for system mode
+</Accordion>

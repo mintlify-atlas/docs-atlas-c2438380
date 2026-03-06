@@ -1,80 +1,357 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Get started with Ora Browser in minutes
+icon: rocket
 ---
 
-## Get started in three steps
+This guide will help you go from launching Ora Browser to browsing the web efficiently using its core features.
 
-Get your documentation site running locally and make your first customization.
+## First Launch
 
-### Step 1: Set up your local environment
+When you first launch Ora Browser, you'll see a clean, minimal interface with:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+- **Sidebar** on the left showing your tabs and spaces
+- **Main content area** in the center for web pages
+- **Toolbar** at the top with navigation controls and URL bar
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  On first launch, Ora creates a default space with an empty tab ready for browsing.
 </Note>
+
+## Basic Navigation
+
+### Opening Your First Website
+
+<Steps>
+  <Step title="Focus the URL Bar">
+    Click the URL bar at the top or press **⌘L**
+  </Step>
+
+  <Step title="Enter URL or Search">
+    Type a URL (e.g., `github.com`) or search query
+    
+    The URL bar will automatically detect if you're entering:
+    - A direct URL → Navigates directly
+    - A search query → Uses your default search engine
+  </Step>
+
+  <Step title="Navigate">
+    Press **Return** to load the page
+  </Step>
+</Steps>
+
+### Navigation Controls
+
+Use the toolbar buttons or keyboard shortcuts to navigate:
+
+| Action | Shortcut | Button |
+|--------|----------|--------|
+| Back | **⌘[** | ← |
+| Forward | **⌘]** | → |
+| Reload | **⌘R** | ↻ |
+| Home | Click URL bar | 🏠 |
+
+<Note>
+  **⌘⇧R** performs a hard reload (clearing cache), and **⌘⌥⇧R** clears cookies as well.
+</Note>
+
+## Working with Tabs
+
+### Creating Tabs
+
+<Steps>
+  <Step title="Open Quick Launcher">
+    Press **⌘T** to open the Quick Launcher overlay
+    
+    The launcher appears as a centered search bar with a dark overlay background.
+  </Step>
+
+  <Step title="Enter URL or Search">
+    Type your destination:
+    - Direct URLs (e.g., `reddit.com`)
+    - Search queries (uses default search engine)
+    - Search engine shortcuts (e.g., `g:` for Google, `gh:` for GitHub)
+  </Step>
+
+  <Step title="Submit">
+    Press **Return** to open the tab
+    
+    Press **Tab** while typing to select a specific search engine.
+  </Step>
+</Steps>
+
+### Managing Tabs
+
+| Action | Shortcut | Description |
+|--------|----------|-------------|
+| New Tab | **⌘T** | Opens Quick Launcher |
+| Close Tab | **⌘W** | Closes current tab |
+| Restore Tab | **⌘Z** | Reopens last closed tab |
+| Next Tab | **⌃Tab** | Switches to next tab |
+| Previous Tab | **⌃⇧Tab** | Switches to previous tab |
+| Jump to Tab | **⌘1**-**⌘9** | Jumps to tab 1-9 |
+| Pin Tab | **⌘D** | Pins/unpins current tab |
+
+### Tab Types
+
+Ora Browser supports three types of tabs visible in the sidebar:
+
+<CardGroup cols={3}>
+  <Card title="Normal Tabs" icon="window">
+    Regular browsing tabs
+  </Card>
+  <Card title="Pinned Tabs" icon="thumbtack">
+    Stay at the top, reopen on launch
+  </Card>
+  <Card title="Favorite Tabs" icon="star">
+    Quick access grid at the top
+  </Card>
+</CardGroup>
+
+To **pin a tab**, press **⌘D** or right-click and select "Pin Tab"
+
+## Using Spaces (Containers)
+
+Spaces allow you to organize tabs into separate contexts. Each space has its own:
+- Set of tabs
+- Browsing history
+- Independent session
+
+### Default Space
+
+On first launch, Ora creates a default space (💩) containing all your tabs.
+
+### Creating Spaces
+
+<Note>
+  Space management features are available through the sidebar interface. Each space is identified by an emoji and name.
+</Note>
+
+### Switching Between Spaces
+
+Click on a space in the sidebar to switch to it. All tabs within that space will become active.
+
+## Quick Launcher
+
+The Quick Launcher (⌘T) is your command center for navigation and search.
+
+### Search Engine Shortcuts
+
+Type a shortcut followed by your query:
+
+```bash
+g: machine learning        # Google search
+gh: the-ora/browser       # GitHub search
+yt: ora browser           # YouTube search
+```
+
+Press **Tab** after typing a shortcut to confirm the search engine selection.
+
+### URL Detection
+
+The launcher automatically detects URLs and navigates directly:
+
+```bash
+github.com                # → https://github.com
+localhost:3000            # → http://localhost:3000
+192.168.1.1              # → http://192.168.1.1
+```
+
+## Essential Keyboard Shortcuts
+
+### Window & App
+
+| Action | Shortcut |
+|--------|----------|
+| New Window | **⌘N** |
+| New Private Window | **⌘⇧N** |
+| Close Window | **⌘⇧W** |
+| Preferences | **⌘,** |
+| Quit | **⌘Q** |
+
+### Tabs
+
+| Action | Shortcut |
+|--------|----------|
+| New Tab | **⌘T** |
+| Close Tab | **⌘W** |
+| Reopen Tab | **⌘⇧T** |
+| Next Tab | **⌃Tab** |
+| Previous Tab | **⌃⇧Tab** |
+| Pin Tab | **⌘D** |
+| Tab 1-9 | **⌘1**-**⌘9** |
+
+### Navigation
+
+| Action | Shortcut |
+|--------|----------|
+| Back | **⌘[** |
+| Forward | **⌘]** |
+| Reload | **⌘R** |
+| Hard Reload | **⌘⇧R** |
+| Focus URL Bar | **⌘L** |
+| Copy URL | **⌘⇧C** |
+
+### View
+
+| Action | Shortcut |
+|--------|----------|
+| Toggle Sidebar | **⌘S** |
+| Toggle Toolbar | **⌘⇧D** |
+| Find in Page | **⌘F** |
+| Zoom In | **⌘+** |
+| Zoom Out | **⌘-** |
+| Reset Zoom | **⌘0** |
+| Fullscreen | **⌃⌘F** |
+
+### Developer
+
+| Action | Shortcut |
+|--------|----------|
+| Toggle DevTools | **⌘⌥I** |
+| Reload (No Cache) | **⌘⇧R** |
+
+## Privacy Features
+
+### Private Browsing
+
+Open a private window with **⌘⇧N**. Private windows:
+- Don't save browsing history
+- Don't persist cookies after closing
+- Show a "Private Browsing" indicator
+- Can't create favorite tabs
+
+### Content Blocking
+
+Ora includes built-in content blocking for:
+- Tracking prevention
+- Ad blocking
+- Enhanced privacy
+
+<Note>
+  Content blocking is enabled by default and works across all browsing sessions.
+</Note>
+
+## Search Engines
+
+### Default Search Engine
+
+Configure your default search engine in Preferences → Search:
+
+- Google
+- DuckDuckGo
+- Bing
+- Brave Search
+- Custom search engines
+
+### Custom Search Engines
+
+Add custom search engines with URL patterns:
+
+```
+https://github.com/search?q=%s
+```
+
+Use `%s` as the placeholder for the search query.
+
+## Customization
+
+### Interface Options
+
+Access these from the **View** menu or keyboard shortcuts:
+
+**Sidebar Position**
+- Left side (default)
+- Right side
+
+**URL Display**
+- Full URL (shows complete address)
+- Simplified (shows domain only)
+
+**Appearance**
+- System (follows macOS)
+- Light mode
+- Dark mode
+
+### Toolbar
+
+Toggle toolbar visibility with **⌘⇧D**. When hidden, URL display appears in the sidebar.
+
+## Updates
+
+Ora Browser uses Sparkle for automatic updates:
+
+1. Check for updates: Ora menu → **Check for Updates**
+2. Auto-update checking can be enabled in Preferences → General
+3. Update notifications appear when new versions are available
+
+## Tips & Tricks
+
+<CardGroup cols={2}>
+  <Card title="Tab Navigation" icon="keyboard">
+    Use **⌘1** through **⌘9** to quickly jump to any of your first 9 tabs
+  </Card>
+  
+  <Card title="Quick Search" icon="magnifying-glass">
+    Press **⌘T** and start typing immediately—no need to click
+  </Card>
+  
+  <Card title="Pin Frequently Used" icon="thumbtack">
+    Pin tabs you use daily (email, calendar) with **⌘D** so they reopen on launch
+  </Card>
+  
+  <Card title="Organized Spaces" icon="layer-group">
+    Create spaces for different contexts: work, personal, research
+  </Card>
+  
+  <Card title="Keyboard Focused" icon="rocket">
+    Learn the essential shortcuts—Ora is designed for keyboard-first browsing
+  </Card>
+  
+  <Card title="Clean Interface" icon="eye">
+    Hide sidebar (**⌘S**) and toolbar (**⌘⇧D**) for distraction-free reading
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card 
+    title="Settings & Preferences" 
+    icon="gear"
+    href="https://github.com/the-ora/browser/wiki"
+  >
+    Customize Ora to your workflow
+  </Card>
+  
+  <Card 
+    title="Keyboard Shortcuts" 
+    icon="keyboard"
+    href="https://github.com/the-ora/browser/wiki"
+  >
+    Complete keyboard shortcut reference
+  </Card>
+  
+  <Card 
+    title="Contributing" 
+    icon="code-pull-request"
+    href="https://github.com/the-ora/browser/blob/main/CONTRIBUTING.md"
+  >
+    Help improve Ora Browser
+  </Card>
+  
+  <Card 
+    title="Join Community" 
+    icon="discord"
+    href="https://discord.gg/9aZWH52Zjm"
+  >
+    Get help and share feedback
+  </Card>
+</CardGroup>
+
+## Getting Help
+
+- **Discord**: Join the [Ora Community](https://discord.gg/9aZWH52Zjm)
+- **GitHub Issues**: Report bugs or request features
+- **Documentation**: Check the [Wiki](https://github.com/the-ora/browser/wiki)
+- **Twitter/X**: Follow [@orabrowser](https://x.com/orabrowser)

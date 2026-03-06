@@ -1,0 +1,475 @@
+---
+title: Quick Launcher
+description: Lightning-fast navigation with intelligent search, URL auto-completion, and AI chat integration
+icon: rocket
+---
+
+The Quick Launcher is Ora's command palette for browsing—a powerful, keyboard-driven interface that combines search, navigation, and AI chat in a single, beautiful overlay.
+
+## Opening the Launcher
+
+Press `⌘T` to open the Quick Launcher from anywhere in Ora.
+
+```swift
+Button("New Tab") {
+    NotificationCenter.default.post(name: .showLauncher, object: NSApp.keyWindow)
+}.keyboardShortcut(KeyboardShortcuts.Tabs.new.keyboardShortcut)
+```
+
+## Search Capabilities
+
+The Quick Launcher intelligently determines whether your input is a URL, search query, or command.
+
+### URL Detection
+
+The launcher automatically detects valid URLs and offers to open them directly:
+
+```swift
+private func isValidHostname(_ input: String) -> Bool {
+    let regex = #"^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$"#
+    return input.range(of: regex, options: .regularExpression) != nil
+}
+```
+
+### Search Engine Integration
+
+Quickly search using your default search engine or switch engines on the fly:
+
+```swift
+private func onSubmit(_ newInput: String? = nil) {
+    let correctInput = newInput ?? input
+    var engineToUse = match
+    
+    if engineToUse == nil,
+       let defaultEngine = searchEngineService.getDefaultSearchEngine(
+           for: tabManager.activeContainer?.id
+       )
+    {
+        engineToUse = defaultEngine.toLauncherMatch(
+            originalAlias: correctInput
+        )
+    }
+    
+    if let engine = engineToUse,
+       let url = searchEngineService.createSearchURL(for: engine, query: correctInput)
+    {
+        tabManager.openTab(
+            url: url,
+            historyManager: historyManager,
+            downloadManager: downloadManager,
+            isPrivate: privacyMode.isPrivate
+        )
+    }
+    appState.showLauncher = false
+}
+```
+
+## Search Engine Switching
+
+### Tab to Switch Engines
+
+Press `Tab` while typing to switch to a specific search engine:
+
+<Steps>
+  <Step title="Type an alias">
+    Start typing a search engine alias (e.g., `g` for Google, `ddg` for DuckDuckGo)
+  </Step>
+  
+  <Step title="Press Tab">
+    Hit `Tab` to activate that search engine
+  </Step>
+  
+  <Step title="Enter your query">
+    Type your search query and press `Enter` to search
+  </Step>
+</Steps>
+
+```swift
+private func onTabPress() {
+    guard !input.isEmpty else { return }
+    if let searchEngine = searchEngineService.findSearchEngine(for: input) {
+        let customEngine = searchEngineService.settings.customSearchEngines
+            .first { $0.searchURL == searchEngine.searchURL }
+        match = searchEngine.toLauncherMatch(
+            originalAlias: input,
+            customEngine: customEngine
+        )
+        input = ""
+    }
+}
+```
+
+### Visual Feedback
+
+When a search engine is selected, a colored capsule appears with the engine's icon:
+
+```swift
+if match != nil {
+    SearchEngineCapsule(
+        text: match?.text ?? "",
+        color: match?.color ?? .blue,
+        foregroundColor: match?.foregroundColor ?? .white,
+        icon: match?.icon ?? "",
+        favicon: match?.favicon,
+        faviconBackgroundColor: match?.faviconBackgroundColor
+    )
+}
+```
+
+## Intelligent Suggestions
+
+The Quick Launcher provides contextual suggestions based on your input.
+
+### Suggestion Types
+
+<CardGroup cols={2}>
+  <Card title="Open Tabs" icon="window-restore">
+    Quickly switch to tabs that match your search query
+  </Card>
+  
+  <Card title="History" icon="clock-rotate-left">
+    Find previously visited pages from your browsing history
+  </Card>
+  
+  <Card title="Search Suggestions" icon="magnifying-glass">
+    Auto-complete suggestions from your default search engine
+  </Card>
+  
+  <Card title="AI Chat" icon="robot">
+    Ask questions to ChatGPT, Claude, Gemini, or Grok
+  </Card>
+</CardGroup>
+
+### Suggestion Priority
+
+Suggestions are ordered by relevance:
+
+```swift
+func searchHandler(_ text: String) {
+    guard !text.trimmingCharacters(in: .whitespaces).isEmpty else {
+        suggestions = defaultSuggestions()
+        return
+    }
+    
+    let histories = historyManager.search(
+        text,
+        activeContainerId: tabManager.activeContainer?.id ?? UUID()
+    )
+    let tabs = tabManager.search(text)
+    
+    suggestions = []
+    
+    var itemsCount = 0
+    appendOpenTabs(tabs, itemsCount: &itemsCount)           // Priority 1: Open tabs
+    appendOpenURLSuggestionIfNeeded(text)                   // Priority 2: Direct URLs
+    appendSearchWithDefaultEngineSuggestion(text)           // Priority 3: Search query
+    
+    let insertIndex = suggestions.count
+    requestAutoSuggestions(text, insertAt: insertIndex)     // Priority 4: Auto-complete
+    
+    appendHistorySuggestions(histories, itemsCount: &itemsCount)  // Priority 5: History
+    appendAISuggestionsIfNeeded(text)                       // Priority 6: AI chat
+    
+    focusedElement = suggestions.first?.id ?? UUID()
+}
+```
+
+## Open Tab Search
+
+Quickly find and switch to tabs that are already open:
+
+```swift
+private func appendOpenTabs(_ tabs: [Tab], itemsCount: inout Int) {
+    for tab in tabs {
+        if itemsCount >= 2 { break }
+        suggestions.append(
+            LauncherSuggestion(
+                type: .openedTab,
+                title: tab.title,
+                url: tab.url,
+                faviconURL: tab.favicon,
+                faviconLocalFile: tab.faviconLocalFile,
+                action: {
+                    if !tab.isWebViewReady {
+                        tab.restoreTransientState(
+                            historyManager: historyManager,
+                            downloadManager: downloadManager,
+                            tabManager: tabManager,
+                            isPrivate: privacyMode.isPrivate
+                        )
+                    }
+                    tabManager.activateTab(tab)
+                }
+            )
+        )
+        itemsCount += 1
+    }
+}
+```
+
+<Note>
+The launcher shows up to 2 matching open tabs to help you quickly switch without opening duplicates.
+</Note>
+
+## AI Chat Integration
+
+The Quick Launcher includes built-in support for popular AI chat services.
+
+### Supported AI Services
+
+- **ChatGPT** - OpenAI's conversational AI
+- **Claude** - Anthropic's AI assistant
+- **Gemini** - Google's AI model
+- **Grok** - xAI's conversational AI
+
+### AI Query Detection
+
+Ora intelligently detects when your query would benefit from AI:
+
+```swift
+func isAISuitableQuery(_ query: String) -> Bool {
+    let lowercased = query.lowercased()
+    
+    let aiKeywords = [
+        #"^(who|when|where|what|how|why)\b.*\?$"#,  // Question patterns
+        #"^\d{4}"#,  // Year patterns
+        "summarize", "rewrite", "explain", "code", "how to", "generate",
+        "idea", "opinion", "feedback", "story", "joke", "email", "draft",
+        "translate", "compare", "alternatives", "improve", "fix", "suggest"
+    ]
+    
+    for keyword in aiKeywords {
+        if lowercased.contains(keyword) {
+            return true
+        }
+    }
+    
+    return false
+}
+```
+
+### Creating AI Suggestions
+
+```swift
+private func createAISuggestion(engineName: SearchEngineID, query: String? = nil) -> LauncherSuggestion {
+    guard let engine = searchEngineService.getSearchEngine(engineName) else {
+        return LauncherSuggestion(
+            type: .aiChat,
+            title: query ?? engineName.rawValue,
+            name: engineName.rawValue,
+            action: {}
+        )
+    }
+    
+    let faviconURL = FaviconService.shared.faviconURL(forSearchURL: engine.searchURL)
+    
+    return LauncherSuggestion(
+        type: .aiChat,
+        title: query ?? engine.name,
+        name: engine.name,
+        faviconURL: faviconURL,
+        action: {
+            tabManager.openFromEngine(
+                engineName: engineName,
+                query: query ?? text,
+                historyManager: historyManager,
+                isPrivate: privacyMode.isPrivate
+            )
+        }
+    )
+}
+```
+
+## Auto-Complete Suggestions
+
+The launcher fetches real-time search suggestions from your default search engine:
+
+```swift
+private func requestAutoSuggestions(_ text: String, insertAt: Int) {
+    let containerId = tabManager.activeContainer?.id
+    debouncer.run {
+        let searchEngine = self.searchEngineService.getDefaultSearchEngine(for: containerId)
+        if let autoSuggestions = searchEngine?.autoSuggestions {
+            let searchSuggestions = await autoSuggestions(text)
+            await MainActor.run {
+                var localCount = 0
+                for ss in searchSuggestions {
+                    if localCount == 3 { break }
+                    let insertIndex = insertAt + localCount
+                    let suggestion = LauncherSuggestion(
+                        type: .suggestedQuery,
+                        title: ss,
+                        action: { onSubmit(ss) }
+                    )
+                    if insertIndex <= suggestions.count {
+                        suggestions.insert(suggestion, at: insertIndex)
+                    } else {
+                        suggestions.append(suggestion)
+                    }
+                    localCount += 1
+                }
+            }
+        }
+    }
+}
+```
+
+<Note>
+Auto-complete suggestions are debounced by 200ms to prevent excessive API requests while typing.
+</Note>
+
+## Keyboard Navigation
+
+### Arrow Key Navigation
+
+Navigate through suggestions using arrow keys:
+
+```swift
+func moveFocusedElement(_ dir: MoveDirection) {
+    guard let idx = suggestions.firstIndex(where: { $0.id == focusedElement }) else { return }
+    let offset = dir == .up ? -1 : 1
+    let newIndex = (idx + offset + suggestions.count) % suggestions.count
+    focusedElement = suggestions[newIndex].id
+}
+```
+
+### Keyboard Shortcuts
+
+| Action | Key |
+|--------|-----|
+| Open Launcher | `⌘T` |
+| Navigate Down | `↓` or continue `Tab` |
+| Navigate Up | `↑` or `⇧Tab` |
+| Execute Action | `Enter` |
+| Close Launcher | `Esc` |
+| Switch Search Engine | `Tab` (on alias) |
+| Delete Selected Engine | `Delete` (when engine is selected) |
+
+## Visual Design
+
+The Quick Launcher features a beautiful, adaptive design:
+
+```swift
+LauncherMain(
+    text: $input,
+    match: $match,
+    isFocused: $isTextFieldFocused,
+    onTabPress: onTabPress,
+    onSubmit: onSubmit
+)
+.gradientAnimatingBorder(
+    color: match?.faviconBackgroundColor ?? match?.color ?? .clear,
+    trigger: match != nil
+)
+.padding(.horizontal, 20)
+.offset(y: 250)
+.scaleEffect(isVisible ? 1.0 : 0.9)
+.opacity(isVisible ? 1.0 : 0.0)
+.blur(radius: isVisible ? 0 : 2)
+.animation(.easeOut(duration: 0.1), value: isVisible)
+```
+
+### Animated Border
+
+When a search engine is selected, the launcher displays an animated gradient border matching the engine's brand colors:
+
+```swift
+.gradientAnimatingBorder(
+    color: match?.faviconBackgroundColor ?? match?.color ?? .clear,
+    trigger: match != nil
+)
+```
+
+## Default Suggestions
+
+When the launcher is empty, it shows helpful default suggestions:
+
+```swift
+func defaultSuggestions() -> [LauncherSuggestion] {
+    let containerId = tabManager.activeContainer?.id
+    let searchEngine = searchEngineService.getDefaultSearchEngine(for: containerId)
+    let engineName = searchEngine?.name ?? "Google"
+    return [
+        LauncherSuggestion(
+            type: .suggestedQuery, 
+            title: "Search on \(engineName)",
+            action: { onSubmit(nil) }
+        ),
+        createAISuggestion(engineName: .grok),
+        createAISuggestion(engineName: .chatgpt),
+        createAISuggestion(engineName: .claude),
+        createAISuggestion(engineName: .gemini)
+    ]
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Keyboard Shortcuts" icon="keyboard">
+    Master `⌘T` to open the launcher and arrow keys to navigate—it's much faster than using the mouse
+  </Card>
+  
+  <Card title="Learn Engine Aliases" icon="bolt">
+    Memorize common search engine aliases (`g`, `ddg`, `gh`) for quick switching
+  </Card>
+  
+  <Card title="Let AI Help" icon="sparkles">
+    When asking questions or seeking explanations, the launcher automatically suggests AI chat options
+  </Card>
+  
+  <Card title="Check Open Tabs First" icon="window-restore">
+    The launcher shows matching open tabs at the top—avoid opening duplicates
+  </Card>
+</CardGroup>
+
+## Advanced Features
+
+### Debounced Search
+
+The launcher uses intelligent debouncing to balance responsiveness with performance:
+
+```swift
+class Debouncer {
+    private var workItem: DispatchWorkItem?
+    private let delay: TimeInterval
+    
+    init(delay: TimeInterval) {
+        self.delay = delay
+    }
+    
+    func run(_ block: @escaping @Sendable () async -> Void) {
+        workItem?.cancel()
+        let item = DispatchWorkItem {
+            Task { await block() }
+        }
+        workItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+    }
+}
+
+let debouncer = Debouncer(delay: 0.2)
+```
+
+### Custom Placeholders
+
+The launcher shows contextual placeholders based on the selected search engine:
+
+```swift
+private func getPlaceholder(match: Match?) -> String {
+    if match == nil {
+        return "Search the web or enter url..."
+    }
+    
+    if let engine = searchEngineService.getSearchEngine(byName: match!.text) {
+        let prefix = engine.isAIChat ? "Ask" : "Search on"
+        return "\(prefix) \(engine.name)"
+    }
+    
+    return "Search on \(match!.text)"
+}
+```
+
+<Warning>
+The Quick Launcher requires an active internet connection for auto-complete suggestions and AI chat features.
+</Warning>

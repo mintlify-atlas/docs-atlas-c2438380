@@ -1,122 +1,121 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Ora Browser",
+  "theme": "almond",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#666666",
+    "light": "#2b2b2b",
+    "dark": "#e9e9e9"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "https://media.brand.dev/9f67d723-d06b-49ee-96d4-0ea2433ea343.png",
+  "logo": {
+    "light": "/logo.png",
+    "dark": "/logo.png"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/the-ora/browser"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/the-ora/browser",
+      "discord": "https://discord.gg/9aZWH52Zjm",
+      "x": "https://x.com/orabrowser"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/tabs-and-spaces",
+              "features/privacy-and-security",
+              "features/quick-launcher",
+              "features/developer-mode"
+            ]
+          },
+          {
+            "group": "User Guide",
+            "pages": [
+              "guides/keyboard-shortcuts",
+              "guides/search-engines",
+              "guides/session-management",
+              "guides/downloads",
+              "guides/picture-in-picture"
             ]
           },
           {
             "group": "Customization",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
-            ]
-          },
-          {
-            "group": "Writing content",
-            "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
-            ]
-          },
-          {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "customization/settings",
+              "customization/appearance"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Development",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Contributing",
             "pages": [
-              "api-reference/introduction"
+              "development/setup",
+              "development/architecture",
+              "development/hot-reloading",
+              "development/contributing"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Building",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "development/building",
+              "development/testing",
+              "development/releases"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "development/code-style",
+              "development/project-structure"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Resources",
+        "groups": [
+          {
+            "group": "Community",
+            "pages": [
+              "resources/roadmap",
+              "resources/support",
+              "resources/faq"
+            ]
+          },
+          {
+            "group": "Project",
+            "pages": [
+              "resources/security",
+              "resources/license",
+              "resources/code-of-conduct"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

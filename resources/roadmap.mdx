@@ -1,0 +1,125 @@
+---
+title: Project Roadmap
+description: Ora Browser development roadmap tracking progress toward Beta and beyond
+icon: map
+---
+
+Ora Browser is currently in **early development**. This roadmap tracks progress toward the **Beta** milestone and beyond.
+
+<Note>
+Goal: A stable, privacy-first macOS browser with a clean native interface.
+</Note>
+
+## Current Status
+
+| Phase | Status | Focus |
+|--------|---------|--------|
+| **Alpha (Current)** | 🟢 Active | Core browsing, tabs, session management, and core UIs |
+| **Beta 1** | Soon | Autofill, bookmarks(folders), downloads, peek, split tab views and more |
+| **Stable 1.0** | Future | Full extensions support, performance, UI polish |
+
+## Beta Feature Targets
+
+Below is the list of core features planned or completed for the Beta release.
+
+### Tabs & Navigation
+
+<Steps>
+  <Step title="Spaces (containers)">
+    ✅ Complete - Organize tabs into isolated browsing contexts
+  </Step>
+  <Step title="Pinning and reordering">
+    ✅ Complete - Pin important tabs and drag to reorder
+  </Step>
+  <Step title="Floating tab switcher">
+    ✅ Complete - Quick keyboard-driven tab switching
+  </Step>
+  <Step title="Auto-closing inactive tabs">
+    ✅ Complete - Automatically manage tab lifecycle
+  </Step>
+</Steps>
+
+### Interface & Layout
+
+**Completed:**
+- ✅ Vertical tabs (sidebar)
+- ✅ Picture in Picture
+
+**In Progress:**
+- ⏳ History - [#130](https://github.com/the-ora/browser/pull/130)
+
+**Planned:**
+- Split tabs (side-by-side view)
+- Peek webview
+- Settings
+
+### Stability & Performance
+
+**Completed:**
+- ✅ Session restore after app restart or crash
+
+**Planned:**
+- Download manager with pause/resume support
+
+### Privacy & Security
+
+**Completed:**
+- ✅ Private browsing mode
+- ✅ Passkeys
+
+**In Progress:**
+- ⏳ Permissions [#48](https://github.com/the-ora/browser/pull/49)
+
+**Planned:**
+- iCloud Keychain password autofill
+- Ad Blocker
+- Fingerprint protection
+
+### Personalization
+
+**Planned:**
+- Bookmark management with folders
+
+### Developer Features
+
+**Completed:**
+- ✅ Developer Tools
+
+**In Progress:**
+- ⏳ Extensions — Safari & Chrome extensions (beta) [#137](https://github.com/the-ora/browser/pull/137)
+
+### System Integration
+
+**Planned:**
+- Web notifications
+
+### Power User Features
+
+**Completed:**
+- ✅ Keyboard shortcuts for navigation and tabs
+
+## Post-Beta Plans
+
+<CardGroup cols={2}>
+  <Card title="Full Extensions Ecosystem" icon="puzzle-piece">
+    Support for Safari and Chrome extensions with a complete API implementation
+  </Card>
+  <Card title="Theming" icon="palette">
+    Customizable appearance and color schemes
+  </Card>
+</CardGroup>
+
+## Contributing & Feedback
+
+<CardGroup cols={2}>
+  <Card title="Join Discord" icon="discord" href="https://discord.gg/9aZWH52Zjm">
+    Join discussions and suggest features on our Discord server
+  </Card>
+  <Card title="Contributing Guide" icon="code" href="/development/contributing">
+    See setup instructions and development guidelines
+  </Card>
+</CardGroup>
+
+<Note>
+Last updated: October 2025
+</Note>

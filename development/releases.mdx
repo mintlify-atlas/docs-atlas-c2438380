@@ -1,0 +1,470 @@
+---
+title: Release Process
+description: Create and distribute Ora Browser releases with automatic updates
+icon: rocket
+---
+
+## Overview
+
+Ora Browser uses [Sparkle](https://sparkle-project.org/) for automatic updates. The release process involves building, signing, notarizing, and publishing releases with automatic update support.
+
+<Note>
+  All build artifacts are organized in the `build/` directory. Releases are distributed via GitHub Releases and updates are delivered through Sparkle's appcast feed.
+</Note>
+
+## Prerequisites
+
+### Apple Developer Requirements
+
+<Steps>
+  <Step title="Apple Developer Account">
+    You need an active Apple Developer account for code signing and notarization.
+  </Step>
+
+  <Step title="Developer ID Certificate">
+    Install a "Developer ID Application" certificate from your Apple Developer account.
+  </Step>
+
+  <Step title="App-Specific Password">
+    Generate an app-specific password for notarization:
+    1. Go to [appleid.apple.com](https://appleid.apple.com)
+    2. Sign in with your Apple ID
+    3. Generate an app-specific password for notarization
+    4. Store it in your keychain
+  </Step>
+</Steps>
+
+### Required Tools
+
+```bash
+# Install Sparkle for update signing
+brew install --cask sparkle
+
+# Install create-dmg for DMG creation
+brew install create-dmg
+
+# Install GitHub CLI for release uploads
+brew install gh
+gh auth login
+```
+
+### Environment Configuration
+
+Create a `.env` file in the project root with your credentials:
+
+```bash .env
+APPLE_ID=your-apple-id@example.com
+TEAM_ID=your-team-id
+APP_SPECIFIC_PASSWORD_KEYCHAIN=your-keychain-item-name
+SIGNING_IDENTITY="Developer ID Application: Your Name (TEAM_ID)"
+ORA_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----...
+```
+
+<Warning>
+  **NEVER commit `.env` to version control**. It contains sensitive credentials. The `.env` file should be in your `.gitignore`.
+</Warning>
+
+## Release Workflow
+
+### Quick Release
+
+Create a release with automatic version increment:
+
+```bash
+./scripts/create-release.sh
+```
+
+This automatically:
+- Increments the patch version
+- Generates a changelog from git commits
+- Builds and signs the app
+- Creates and notarizes a DMG
+- Updates appcast.xml
+- Deploys to GitHub Pages
+- Uploads to GitHub Releases
+
+### Manual Version Release
+
+Specify a version number:
+
+```bash
+./scripts/create-release.sh 0.3.0
+```
+
+## Release Steps
+
+<Steps>
+  <Step title="Version Resolution">
+    The script determines the version number:
+    
+    ```bash
+    # Auto-increment from project.yml
+    CURRENT_VERSION=$(grep "MARKETING_VERSION:" project.yml | sed 's/.*MARKETING_VERSION: //' | tr -d ' ')
+    VERSION=$(echo "$CURRENT_VERSION" | awk -F. '{print $1"."$2"."($3+1)}')
+    ```
+    
+    Build version is also incremented in `CURRENT_PROJECT_VERSION`.
+  </Step>
+
+  <Step title="Changelog Generation">
+    A changelog is automatically generated from git commits:
+    
+    ```bash
+    # Generate changelog from commits since last tag
+    git log --pretty=format:"%s%x1F%an" --no-merges "$last_tag"..HEAD
+    ```
+    
+    Commits are categorized:
+    - **Features**: `feat:` prefix
+    - **Fixes**: `fix:` prefix
+    - **Performance**: `perf:` prefix
+    - **Docs**: `docs:` prefix
+    - **Chores**: `chore:` prefix
+    - **Other**: Everything else
+    
+    You'll be prompted to review and confirm the changelog before proceeding.
+  </Step>
+
+  <Step title="Project Update">
+    Version numbers are updated in `project.yml`:
+    
+    ```bash
+    sed -i.bak "s/MARKETING_VERSION: .*/MARKETING_VERSION: $VERSION/" project.yml
+    sed -i.bak "s/CURRENT_PROJECT_VERSION: .*/CURRENT_PROJECT_VERSION: $BUILD_VERSION/" project.yml
+    ```
+  </Step>
+
+  <Step title="Sparkle Key Management">
+    Ed25519 keys are managed for signing updates:
+    
+    **First Release** (no keys exist):
+    ```bash
+    generate_keys --account "ora-browser-ed25519"
+    ```
+    - Public key saved to `ora_public_key.pem` (committed to git)
+    - Private key saved to `.env` as `ORA_PRIVATE_KEY` (never committed)
+    
+    **Subsequent Releases**:
+    - Uses existing public key from `ora_public_key.pem`
+    - Retrieves private key from `.env`
+  </Step>
+
+  <Step title="Build and Sign">
+    The `build-release.sh` script handles the complete build process:
+    
+    ```bash
+    ./scripts/build-release.sh
+    ```
+    
+    This performs:
+    1. Generates Xcode project with xcodegen
+    2. Builds Release configuration
+    3. Signs the app bundle with Developer ID
+    4. Creates a DMG with create-dmg
+    5. Signs the DMG
+    6. Notarizes with Apple
+    7. Staples notarization ticket
+  </Step>
+
+  <Step title="Update Signing">
+    The DMG is signed with your Sparkle private key:
+    
+    ```bash
+    sign_update --ed-key-file "$PRIVATE_KEY" "$DMG_FILE"
+    ```
+    
+    The signature is embedded in `appcast.xml`:
+    
+    ```xml
+    <enclosure 
+      url="https://github.com/the-ora/browser/releases/download/v0.2.11/Ora-Browser-0.2.11.dmg"
+      sparkle:version="99"
+      sparkle:shortVersionString="0.2.11"
+      length="4833099"
+      type="application/octet-stream"
+      sparkle:edSignature="GMIA/ojqC6eStCMT6cWqHwum6w12blZXTCQa4EjwdWoX6tRwOG6XNNuwkML9t1Mij30iooqZAV+LPmzVRxDCCQ=="/>
+    ```
+  </Step>
+
+  <Step title="Deployment">
+    The release is deployed to multiple destinations:
+    
+    **GitHub Releases**:
+    ```bash
+    ./scripts/upload-dmg.sh "$VERSION" "$DMG_FILE"
+    ```
+    
+    **GitHub Pages** (appcast hosting):
+    ```bash
+    # appcast.xml deployed to gh-pages branch
+    git checkout gh-pages
+    git add appcast.xml
+    git commit -m "Deploy appcast v$VERSION"
+    git push origin gh-pages
+    ```
+  </Step>
+</Steps>
+
+## Build Script Details
+
+### build-release.sh
+
+The release build script performs a complete production build:
+
+<CodeGroup>
+```bash Configuration
+# Load environment variables
+APPLE_ID=your-apple-id@example.com
+TEAM_ID=your-team-id
+APP_SPECIFIC_PASSWORD_KEYCHAIN=your-keychain-item-name
+SIGNING_IDENTITY="Developer ID Application: Your Name (TEAM_ID)"
+```
+
+```bash Build
+# Build with Release configuration
+xcodebuild build \
+  -scheme ora \
+  -configuration Release \
+  -destination "platform=macOS" \
+  -derivedDataPath "build/DerivedData"
+```
+
+```bash Signing
+# Sign app bundle
+codesign --force --deep --options runtime \
+  --timestamp --sign "$SIGNING_IDENTITY" "build/Ora.app"
+
+# Sign DMG
+codesign -f --timestamp \
+  -s "$SIGNING_IDENTITY" "build/Ora-Browser-${VERSION}.dmg"
+```
+
+```bash Notarization
+# Submit for notarization
+xcrun notarytool submit "build/${DMG_NAME}" \
+  --apple-id "$APPLE_ID" \
+  --team-id "$TEAM_ID" \
+  --password "${APP_SPECIFIC_PASSWORD_KEYCHAIN}" \
+  --wait
+
+# Staple ticket
+xcrun stapler staple "build/${DMG_NAME}"
+xcrun stapler staple "build/Ora.app"
+```
+</CodeGroup>
+
+### create-release.sh
+
+The complete release automation script:
+
+```bash scripts/create-release.sh
+#!/bin/bash
+set -e
+
+# Usage: ./scripts/create-release.sh [version]
+# If version is omitted, patch is auto-incremented
+
+# 1. Resolve version number
+# 2. Generate changelog from git commits
+# 3. Update project.yml
+# 4. Setup/verify Sparkle keys
+# 5. Build and sign (calls build-release.sh)
+# 6. Sign update with Sparkle
+# 7. Update appcast.xml
+# 8. Commit changes
+# 9. Upload to GitHub Releases
+# 10. Deploy appcast to GitHub Pages
+```
+
+## Automatic Updates
+
+### Sparkle Configuration
+
+Sparkle is configured in `project.yml`:
+
+```yaml project.yml
+info:
+  properties:
+    SUFeedURL: "https://the-ora.github.io/browser/appcast.xml"
+    SUPublicEDKey: "Ozj+rezzbJAD76RfajtfQ7rFojJbpFSCl/0DcFSBCTI="
+    SUEnableAutomaticChecks: YES
+```
+
+### Appcast Feed
+
+The `appcast.xml` file is hosted on GitHub Pages:
+
+```xml appcast.xml
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Ora Browser Changelog</title>
+    <description>Most recent changes with links to updates.</description>
+    <language>en</language>
+    <item>
+      <title>Version 0.2.11</title>
+      <description><![CDATA[
+        <h2>Ora Browser v0.2.11</h2>
+        <p>Changes since last release:</p>
+        <div class="changelog">
+          <h3>Features</h3>
+          <ul>
+            <li>feat(setup): add navigation to parent directory before running xcodegen</li>
+          </ul>
+        </div>
+      ]]></description>
+      <pubDate>Thu, 11 Dec 2025 13:38:16 +0000</pubDate>
+      <enclosure 
+        url="https://github.com/the-ora/browser/releases/download/v0.2.11/Ora-Browser-0.2.11.dmg"
+        sparkle:version="99"
+        sparkle:shortVersionString="0.2.11"
+        length="4833099"
+        type="application/octet-stream"
+        sparkle:edSignature="GMIA/ojqC6eStCMT6cWqHwum6w12blZXTCQa4EjwdWoX6tRwOG6XNNuwkML9t1Mij30iooqZAV+LPmzVRxDCCQ=="/>
+    </item>
+  </channel>
+</rss>
+```
+
+### Update Flow
+
+1. **User launches Ora**: Sparkle checks for updates at app launch
+2. **Fetches appcast**: Downloads and parses `appcast.xml`
+3. **Version comparison**: Compares `sparkle:version` with current build
+4. **Signature verification**: Validates `sparkle:edSignature` with `SUPublicEDKey`
+5. **User prompt**: Shows changelog and update prompt
+6. **Download**: Downloads DMG from GitHub Releases
+7. **Install**: Replaces app bundle with new version
+
+## Security
+
+### Key Management
+
+<Warning>
+  **Critical Security Requirements**:
+  - Public key (`ora_public_key.pem`): Committed to git, embedded in app
+  - Private key: Stored in `.env`, **NEVER committed to git**
+  - Losing the private key means you cannot sign future updates
+  - Users with the old public key will not accept updates
+</Warning>
+
+### Backup Your Keys
+
+```bash
+# Backup private key securely
+cp .env ~/secure-backups/ora-browser-env-$(date +%Y%m%d).backup
+
+# Store in password manager or encrypted backup
+```
+
+### Verification
+
+The release script includes security checks:
+
+```bash
+# Ensure .env is not tracked
+if git ls-files | grep -q "\.env$"; then
+    echo "error: .env is tracked by git. Remove it with:"
+    echo "  git rm --cached .env && git commit -m 'Remove .env from tracking'"
+    exit 1
+fi
+```
+
+## Release Checklist
+
+Before creating a release:
+
+- [ ] All tests pass (`xcodebuild test -scheme ora -destination "platform=macOS"`)
+- [ ] Code is properly formatted (`swiftformat . --quiet`)
+- [ ] No linting errors (`swiftlint --quiet`)
+- [ ] `.env` file is configured with credentials
+- [ ] Git working directory is clean
+- [ ] Changelog commits follow convention (feat:, fix:, etc.)
+
+After release:
+
+- [ ] Verify GitHub Release is created
+- [ ] Test DMG download and installation
+- [ ] Verify appcast.xml is accessible at GitHub Pages URL
+- [ ] Test automatic update in existing installation
+- [ ] Announce release on Discord/Twitter
+
+## Troubleshooting
+
+### Notarization Failures
+
+If notarization fails:
+
+```bash
+# Check notarization status
+xcrun notarytool log <submission-id> \
+  --apple-id "$APPLE_ID" \
+  --team-id "$TEAM_ID" \
+  --password "$APP_SPECIFIC_PASSWORD_KEYCHAIN"
+```
+
+Common issues:
+- Invalid signing identity
+- Missing or incorrect entitlements
+- App-specific password expired
+
+### Sparkle Signature Errors
+
+If signature generation fails:
+
+```bash
+# Verify Sparkle tools are installed
+which generate_keys
+which sign_update
+
+# Check private key exists and is valid
+cat build/temp_private_key.pem
+```
+
+### GitHub Upload Failures
+
+If DMG upload fails:
+
+```bash
+# Verify GitHub CLI is authenticated
+gh auth status
+
+# Manually upload to release
+gh release upload v0.2.11 build/Ora-Browser-0.2.11.dmg \
+  --repo the-ora/browser \
+  --clobber
+```
+
+## Distribution Channels
+
+### GitHub Releases
+
+Releases are published at:
+```
+https://github.com/the-ora/browser/releases
+```
+
+### Update Feed
+
+Appcast is hosted at:
+```
+https://the-ora.github.io/browser/appcast.xml
+```
+
+### Direct Download
+
+DMG files are available at:
+```
+https://github.com/the-ora/browser/releases/download/v{version}/Ora-Browser-{version}.dmg
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Building" icon="hammer" href="/development/building">
+    Learn how to build Ora Browser for development
+  </Card>
+  <Card title="Testing" icon="flask" href="/development/testing">
+    Run tests and write new test cases
+  </Card>
+</CardGroup>

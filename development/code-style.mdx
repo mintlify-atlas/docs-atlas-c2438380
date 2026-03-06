@@ -1,0 +1,447 @@
+---
+title: Code Style & Standards
+description: Code formatting, linting rules, and coding conventions for Ora Browser development
+icon: code
+---
+
+Ora Browser maintains strict code quality standards through automated formatting and linting. All code must adhere to these standards before being merged.
+
+## Formatting & Linting Tools
+
+Code quality is enforced through git hooks that automatically run on every commit:
+
+<CardGroup cols={2}>
+  <Card title="SwiftFormat" icon="paintbrush">
+    Handles code formatting and style consistency
+  </Card>
+  <Card title="SwiftLint" icon="shield-check">
+    Enforces coding standards and best practices
+  </Card>
+</CardGroup>
+
+### Running Tools Manually
+
+You can run these tools manually at any time:
+
+```bash
+swiftformat . --quiet
+swiftlint --quiet
+```
+
+<Note>
+The setup script (`./scripts/setup.sh`) automatically installs git hooks that run these tools on every commit.
+</Note>
+
+## SwiftFormat Configuration
+
+The project uses SwiftFormat with specific rules defined in `.swiftformat`:
+
+```text .swiftformat
+--swiftversion 5.9
+--indent 4
+--maxwidth 120
+--allman false
+--semicolons never
+--stripunusedargs closure-only
+--wraparguments before-first
+--wrapcollections before-first
+--commas inline
+--closingparen balanced
+--self remove
+--trimwhitespace always
+--ranges spaced
+```
+
+### Key Formatting Rules
+
+<Steps>
+  <Step title="Indentation">
+    Use 4 spaces for indentation (no tabs)
+    ```swift
+    func example() {
+        let value = 42
+        if value > 0 {
+            print(value)
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Line Length">
+    Maximum line width is 120 characters
+    ```swift
+    // Good - within 120 character limit
+    func processUserData(userId: UUID, name: String, email: String) { }
+    
+    // Bad - exceeds limit, should be wrapped
+    func processUserDataWithVeryLongParameterNamesAndMultipleArgumentsThatMakeTheLineTooLongToRead(userId: UUID, userName: String) { }
+    ```
+  </Step>
+
+  <Step title="Semicolons">
+    Never use semicolons (they're optional in Swift)
+    ```swift
+    // Good
+    let x = 10
+    let y = 20
+    
+    // Bad
+    let x = 10;
+    let y = 20;
+    ```
+  </Step>
+
+  <Step title="Self References">
+    Remove explicit `self` unless required for disambiguation
+    ```swift
+    class Example {
+        var name: String
+        
+        // Good - self removed where not needed
+        func updateName(_ newName: String) {
+            name = newName
+        }
+        
+        // Good - self required in closure
+        func delayedUpdate(_ newName: String) {
+            DispatchQueue.main.async {
+                self.name = newName
+            }
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+## SwiftLint Configuration
+
+SwiftLint enforces coding standards through `.swiftlint.yml`:
+
+### Enabled Rules
+
+The project enables additional opt-in rules for stricter code quality:
+
+<Tabs>
+  <Tab title="Safety Rules">
+    ```yaml
+    opt_in_rules:
+      - force_unwrapping          # Warn on force unwraps (!)
+      - implicitly_unwrapped_optional  # Warn on implicitly unwrapped optionals
+    ```
+    
+    These rules help prevent runtime crashes:
+    
+    ```swift
+    // Warning - force unwrapping
+    let value = optionalValue!
+    
+    // Preferred - safe unwrapping
+    guard let value = optionalValue else { return }
+    
+    // Warning - implicitly unwrapped optional
+    var unsafeValue: String!
+    
+    // Preferred - explicit optional handling
+    var safeValue: String?
+    ```
+  </Tab>
+
+  <Tab title="Best Practices">
+    ```yaml
+    opt_in_rules:
+      - empty_count    # Use isEmpty instead of count == 0
+      - weak_delegate  # Delegates should be weak
+    ```
+    
+    Examples:
+    
+    ```swift
+    // Good - use isEmpty
+    if tabs.isEmpty {
+        showEmptyState()
+    }
+    
+    // Bad - comparing count to zero
+    if tabs.count == 0 {
+        showEmptyState()
+    }
+    
+    // Good - weak delegate
+    weak var delegate: TabDelegate?
+    
+    // Bad - strong delegate (potential retain cycle)
+    var delegate: TabDelegate?
+    ```
+  </Tab>
+</Tabs>
+
+### Code Metrics
+
+SwiftLint enforces limits on code complexity:
+
+```yaml
+line_length:
+  warning: 120
+
+file_length:
+  warning: 500
+  error: 800
+
+function_body_length:
+  warning: 50
+  error: 100
+
+type_body_length:
+  warning: 300
+  error: 500
+
+cyclomatic_complexity:
+  warning: 10
+  error: 20
+
+nesting:
+  type_level:
+    warning: 2
+    error: 3
+  function_level:
+    warning: 2
+    error: 3
+```
+
+<Warning>
+Functions exceeding 50 lines or cyclomatic complexity over 10 should be refactored into smaller, more maintainable units.
+</Warning>
+
+### Custom Rules
+
+The project defines custom rules for specific requirements:
+
+```yaml
+custom_rules:
+  no_print_statements:
+    name: "No Print Statements"
+    regex: "print\\("
+    message: "Use logger instead of print statements"
+    severity: warning
+```
+
+**Example from Tab.swift:224:**
+```swift
+// Bad - using print
+print("Tab title changed: \(title)")
+
+// Good - structured logging
+delegate.onTitleChange = { [weak self] title in
+    DispatchQueue.main.async {
+        if let title, !title.isEmpty {
+            self?.title = title
+        }
+    }
+}
+```
+
+## Coding Conventions
+
+### SwiftUI/AppKit Patterns
+
+Follow established patterns in the codebase for consistency:
+
+<Tabs>
+  <Tab title="View Structure">
+    Organize SwiftUI views with clear separation:
+    
+    ```swift OraRoot.swift
+    struct OraRoot: View {
+        // MARK: - State Objects
+        @StateObject private var appState = AppState()
+        @StateObject private var tabManager: TabManager
+        @StateObject private var historyManager: HistoryManager
+        
+        // MARK: - Injection Support
+        @ObserveInjection var inject
+        
+        // MARK: - Properties
+        let tabContext: ModelContext
+        @State private var window: NSWindow?
+        
+        // MARK: - Body
+        var body: some View {
+            BrowserView()
+                .environmentObject(appState)
+                .enableInjection()
+        }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Models & Data">
+    Use SwiftData for persistence:
+    
+    ```swift Tab.swift
+    @Model
+    class Tab: ObservableObject, Identifiable {
+        var id: UUID
+        var url: URL
+        var title: String
+        var favicon: URL?
+        
+        // Transient properties (not persisted)
+        @Transient var isLoading: Bool = false
+        @Transient @Published var backgroundColor: Color = .black
+        @Transient var webView: WKWebView = WKWebView()
+        
+        // Relationships
+        @Relationship(inverse: \TabContainer.tabs) var container: TabContainer
+    }
+    ```
+  </Tab>
+
+  <Tab title="Services & Managers">
+    Centralize business logic in services:
+    
+    ```swift TabManager.swift
+    class TabManager: ObservableObject {
+        @Published var tabs: [Tab] = []
+        @Published var activeTab: Tab?
+        
+        private let modelContext: ModelContext
+        let mediaController: MediaController
+        
+        func openTab(url: URL, focusAfterOpening: Bool = true) {
+            let tab = Tab(url: url, container: container)
+            tabs.append(tab)
+            if focusAfterOpening {
+                activeTab = tab
+            }
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Modern Swift APIs
+
+Prefer modern Swift and SwiftUI APIs when possible:
+
+```swift
+// Good - modern async/await
+Task { @MainActor in
+    await downloadManager.startDownload(url: url)
+}
+
+// Avoid - older completion handler style (when async alternative exists)
+downloadManager.startDownload(url: url) { result in
+    DispatchQueue.main.async {
+        // handle result
+    }
+}
+
+// Good - SwiftUI state management
+@Published var isLoading: Bool = false
+
+// Good - modern collection operations
+let activeTabs = tabs.filter { $0.type == .normal }
+```
+
+## Compatibility Requirements
+
+<Note>
+Ora Browser targets **macOS 15.0+** with Swift 5.9.
+</Note>
+
+### OS Version Handling
+
+When using newer APIs, always check availability:
+
+```swift
+if #available(macOS 15.0, *) {
+    // Use macOS 15+ features
+    window.backgroundColor = .systemBackground
+} else {
+    // Fallback for older versions
+    window.backgroundColor = .windowBackgroundColor
+}
+
+// Or for declarations
+@available(macOS 15.0, *)
+func useNewFeature() {
+    // Implementation using macOS 15+ APIs
+}
+```
+
+<Warning>
+**Before raising minimum version:** Open an issue to discuss the trade-offs. Backward compatibility should be preserved unless there's a compelling reason to require a newer OS version.
+</Warning>
+
+## File Organization
+
+Maintain the established directory structure:
+
+```
+ora/
+├── Common/           # Shared utilities and extensions
+│   ├── Constants/   # App-wide constants
+│   ├── Extensions/  # Swift/SwiftUI extensions
+│   └── Utils/       # Helper utilities
+├── Models/          # SwiftData models
+├── Services/        # Business logic and managers
+├── Modules/         # Feature-specific views
+│   ├── Browser/
+│   ├── Settings/
+│   └── Sidebar/
+└── UI/              # Reusable UI components
+    ├── Buttons/
+    ├── Dialog/
+    └── Icons/
+```
+
+**See [Project Structure](/development/project-structure) for detailed organization.**
+
+## Code Review Checklist
+
+Before submitting a pull request:
+
+<Steps>
+  <Step title="Formatting & Linting">
+    - [ ] SwiftFormat passes without changes
+    - [ ] SwiftLint shows no warnings or errors
+    - [ ] Git hooks ran successfully on commit
+  </Step>
+
+  <Step title="Code Quality">
+    - [ ] No force unwraps or implicitly unwrapped optionals
+    - [ ] Functions are under 50 lines
+    - [ ] Complexity is reasonable (< 10)
+    - [ ] No print statements (use proper logging)
+  </Step>
+
+  <Step title="Conventions">
+    - [ ] Follows existing patterns in codebase
+    - [ ] Uses modern Swift/SwiftUI APIs
+    - [ ] Proper file organization
+    - [ ] Availability checks for new APIs
+  </Step>
+
+  <Step title="Testing">
+    - [ ] Code builds without warnings
+    - [ ] All tests pass
+    - [ ] New functionality includes tests
+  </Step>
+</Steps>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Project Structure" icon="folder-tree" href="/development/project-structure">
+    Learn about the codebase organization
+  </Card>
+  <Card title="Contributing Guide" icon="code-pull-request" href="/development/contributing">
+    Complete guide to contributing
+  </Card>
+  <Card title="Setup Guide" icon="rocket" href="/development/setup">
+    Get your development environment ready
+  </Card>
+  <Card title="Testing" icon="vial" href="/development/testing">
+    Writing and running tests
+  </Card>
+</CardGroup>

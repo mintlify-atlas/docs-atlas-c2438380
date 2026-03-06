@@ -1,0 +1,218 @@
+---
+title: Development Setup
+description: Set up your local development environment for Ora Browser
+---
+
+Get your development environment ready to contribute to Ora Browser. This guide covers everything from prerequisites to running the app locally.
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **macOS 14.0** or later
+- **Xcode 15** or later (with Swift 5.9+)
+- **Homebrew** - Install from [brew.sh](https://brew.sh)
+
+<Note>
+  The minimum deployment target is currently **macOS 15.0** as specified in `project.yml`. Make sure your development machine meets this requirement.
+</Note>
+
+## Quick Start
+
+<Steps>
+  <Step title="Clone the Repository">
+    Fork the repository on GitHub, then clone your fork locally:
+
+    ```bash
+    git clone https://github.com/YOUR_USERNAME/browser.git
+    cd browser
+    ```
+
+    Replace `YOUR_USERNAME` with your GitHub username.
+  </Step>
+
+  <Step title="Run Setup Script">
+    The setup script installs all required tools, configures git hooks, and generates the Xcode project:
+
+    ```bash
+    ./scripts/setup.sh
+    ```
+
+    This script will:
+    - Check and install required Homebrew packages
+    - Install `xcodegen`, `swiftlint`, `swiftformat`, `xcbeautify`, and `lefthook`
+    - Set up git hooks for automatic formatting and linting
+    - Generate the Xcode project from `project.yml`
+  </Step>
+
+  <Step title="Open in Xcode">
+    Open the generated Xcode project:
+
+    ```bash
+    open Ora.xcodeproj
+    ```
+  </Step>
+
+  <Step title="Build and Run">
+    In Xcode:
+    1. Select the `ora` scheme from the scheme selector
+    2. Press **⌘R** (Product → Run) to build and launch the app
+
+    Alternatively, build from the command line:
+
+    ```bash
+    xcodebuild -scheme ora -destination "platform=macOS"
+    ```
+  </Step>
+</Steps>
+
+## Development Tools
+
+### XcodeGen
+
+Ora uses [XcodeGen](https://github.com/yonaskolb/XcodeGen) to generate the Xcode project from `project.yml`. This ensures consistent project configuration across all contributors.
+
+**When to regenerate:**
+- After modifying `project.yml`
+- After pulling changes that update project configuration
+- When adding new files or targets
+
+```bash
+xcodegen
+```
+
+<Warning>
+  Never manually edit `Ora.xcodeproj` settings in Xcode. Always edit `project.yml` and regenerate the project.
+</Warning>
+
+### SwiftFormat
+
+Automatic code formatting is handled by [SwiftFormat](https://github.com/nicklockwood/SwiftFormat). It runs automatically via git hooks, but you can also run it manually:
+
+```bash
+swiftformat . --quiet
+```
+
+### SwiftLint
+
+Code quality and style enforcement is handled by [SwiftLint](https://github.com/realm/SwiftLint). It also runs automatically via git hooks:
+
+```bash
+swiftlint --quiet
+```
+
+To automatically fix issues:
+
+```bash
+swiftlint --fix
+```
+
+### Lefthook
+
+[Lefthook](https://github.com/evilmartians/lefthook) manages git hooks. The configuration in `lefthook.yml` ensures code quality before commits and pushes:
+
+**Pre-commit hooks:**
+- Run SwiftFormat on staged files
+- Run SwiftLint on staged files
+- Automatically stage fixed files
+
+**Pre-push hooks:**
+- Build the project to catch compilation errors
+
+To reinstall hooks:
+
+```bash
+lefthook install
+```
+
+## Running Tests
+
+Ora includes unit and UI tests to ensure code quality.
+
+### In Xcode
+
+Press **⌘U** (Product → Test) to run all tests.
+
+### Command Line
+
+Run tests via `xcodebuild`:
+
+```bash
+xcodebuild test -scheme ora -destination "platform=macOS"
+```
+
+<Note>
+  All new features should include appropriate tests, and existing tests must continue to pass before submitting a pull request.
+</Note>
+
+## Build Configurations
+
+Ora has two build configurations defined in `project.yml`:
+
+### Debug
+
+- Uses `OraIconDev` app icon (distinguishes debug builds)
+- Enables hot reloading via InjectionIII
+- Sets `EMIT_FRONTEND_COMMAND_LINES = YES` for InjectionIII compatibility
+- Adds `-Xlinker -interposable` for runtime function replacement
+- Uses `ora-debug.entitlements`
+
+### Release
+
+- Uses `OraIcon` production app icon
+- No hot reloading support
+- Optimized for performance
+- Uses `ora.entitlements`
+
+## Common Issues
+
+### Homebrew Packages Not Found
+
+If the setup script can't find required packages, ensure Homebrew is in your PATH:
+
+```bash
+eval "$(/opt/homebrew/bin/brew shellenv)"
+```
+
+Add this line to your `~/.zshrc` or `~/.bash_profile`.
+
+### Xcode Project Out of Sync
+
+If Xcode shows unexpected errors or missing files:
+
+1. Close Xcode
+2. Regenerate the project: `xcodegen`
+3. Reopen Xcode
+
+### Build Errors After Pulling Changes
+
+Try these steps:
+
+1. Clean build folder: **⇧⌘K** (Product → Clean Build Folder)
+2. Regenerate project: `xcodegen`
+3. Restart Xcode
+
+### Git Hooks Not Running
+
+Reinstall lefthook hooks:
+
+```bash
+lefthook install
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Project Architecture" icon="sitemap" href="/development/architecture">
+    Learn about Ora's architecture and code organization
+  </Card>
+  <Card title="Hot Reloading" icon="bolt" href="/development/hot-reloading">
+    Set up InjectionIII for instant SwiftUI updates
+  </Card>
+  <Card title="Contributing Guidelines" icon="code-pull-request" href="/development/contributing">
+    Read the contribution guidelines and workflow
+  </Card>
+  <Card title="Architecture Guide" icon="sitemap" href="/development/architecture">
+    Learn about the codebase architecture
+  </Card>
+</CardGroup>

@@ -1,0 +1,357 @@
+---
+title: Keyboard Shortcuts
+description: Complete reference of keyboard shortcuts in Ora Browser
+icon: keyboard
+---
+
+Ora Browser provides extensive keyboard shortcuts for efficient navigation and control. All shortcuts are customizable through Settings.
+
+## Overview
+
+Keyboard shortcuts in Ora Browser use macOS standard modifier keys:
+- **⌘** Command
+- **⌃** Control
+- **⌥** Option
+- **⇧** Shift
+
+<Note>
+  You can customize any keyboard shortcut in **Settings → Keyboard** to match your preferences.
+</Note>
+
+## Tab Management
+
+<CardGroup cols={2}>
+  <Card title="New Tab" icon="plus">
+    **⌘T** - Open a new tab
+  </Card>
+  <Card title="Close Tab" icon="xmark">
+    **⌘W** - Close the current tab
+  </Card>
+  <Card title="Restore Tab" icon="arrow-rotate-left">
+    **⌘Z** - Restore the last closed tab
+  </Card>
+  <Card title="Reopen Closed Tab" icon="clock-rotate-left">
+    **⌘⇧T** - Reopen the last closed tab
+  </Card>
+</CardGroup>
+
+### Navigation Between Tabs
+
+| Shortcut | Action |
+|----------|--------|
+| **⌃⇥** | Switch to next tab |
+| **⌃⇧⇥** | Switch to previous tab |
+| **⌘1** through **⌘9** | Jump to specific tab (1-9) |
+| **⌘D** | Pin/unpin current tab |
+
+### Tab Organization
+
+```swift
+// From KeyboardShortcuts.swift:44-55
+static let moveRight = KeyboardShortcutDefinition(
+    id: "tabs.moveRight",
+    name: "Move Tab Right",
+    category: "Tabs",
+    defaultChord: KeyChord(keyEquivalent: .rightArrow, modifiers: [.option, .command])
+)
+
+static let moveLeft = KeyboardShortcutDefinition(
+    id: "tabs.moveLeft",
+    name: "Move Tab Left",
+    category: "Tabs",
+    defaultChord: KeyChord(keyEquivalent: .leftArrow, modifiers: [.option, .command])
+)
+```
+
+| Shortcut | Action |
+|----------|--------|
+| **⌥⌘→** | Move tab to the right |
+| **⌥⌘←** | Move tab to the left |
+
+## Page Navigation
+
+<Steps>
+  <Step title="Go Back">
+    Press **⌘[** to navigate to the previous page in history
+  </Step>
+  <Step title="Go Forward">
+    Press **⌘]** to navigate to the next page in history
+  </Step>
+  <Step title="Reload Page">
+    Press **⌘R** to reload the current page
+  </Step>
+  <Step title="Hard Reload">
+    Press **⌘⇧R** to clear cache and reload
+  </Step>
+</Steps>
+
+### Advanced Reload Options
+
+```swift
+// From OraCommands.swift:116-124
+Button("Clear Cache & Reload") {
+    NotificationCenter.default.post(name: .clearCacheAndReload, object: NSApp.keyWindow)
+}
+.keyboardShortcut("r", modifiers: [.command, .shift])
+
+Button("Clear Cookies & Reload") {
+    NotificationCenter.default.post(name: .clearCookiesAndReload, object: NSApp.keyWindow)
+}
+.keyboardShortcut("r", modifiers: [.command, .option, .shift])
+```
+
+| Shortcut | Action |
+|----------|--------|
+| **⌘R** | Standard reload |
+| **⌘⇧R** | Clear cache and reload |
+| **⌘⌥⇧R** | Clear cookies and reload |
+
+## Window Management
+
+<CardGroup cols={2}>
+  <Card title="New Window" icon="window">
+    **⌘N** - Open a new browser window
+  </Card>
+  <Card title="Private Window" icon="eye-slash">
+    **⌘⇧N** - Open a new private browsing window
+  </Card>
+  <Card title="Close Window" icon="xmark">
+    **⌘⇧W** - Close the current window
+  </Card>
+  <Card title="Fullscreen" icon="expand">
+    **⌃⌘F** - Toggle fullscreen mode
+  </Card>
+</CardGroup>
+
+## Address Bar & Search
+
+```swift
+// From KeyboardShortcuts.swift:193-205
+enum Address {
+    static let copyURL = KeyboardShortcutDefinition(
+        id: "address.copyURL",
+        name: "Copy URL",
+        category: "Address",
+        defaultChord: KeyChord(keyEquivalent: .init("c"), modifiers: [.command, .shift])
+    )
+    static let focus = KeyboardShortcutDefinition(
+        id: "address.focus",
+        name: "Focus Address Bar",
+        category: "Address",
+        defaultChord: KeyChord(keyEquivalent: .init("l"), modifiers: [.command])
+    )
+}
+```
+
+| Shortcut | Action |
+|----------|--------|
+| **⌘L** | Focus address bar |
+| **⌘⇧C** | Copy current URL to clipboard |
+
+## Find in Page
+
+<Steps>
+  <Step title="Open Find">
+    Press **⌘F** to open the find-in-page interface
+  </Step>
+  <Step title="Find Next">
+    Press **⌘G** to jump to the next match
+  </Step>
+  <Step title="Find Previous">
+    Press **⌘⇧G** to jump to the previous match
+  </Step>
+</Steps>
+
+```swift
+// From KeyboardShortcuts.swift:210-228
+enum Edit {
+    static let find = KeyboardShortcutDefinition(
+        id: "edit.find",
+        name: "Find",
+        category: "Edit",
+        defaultChord: KeyChord(keyEquivalent: .init("f"), modifiers: [.command])
+    )
+    static let findNext = KeyboardShortcutDefinition(
+        id: "edit.findNext",
+        name: "Find Next",
+        category: "Edit",
+        defaultChord: KeyChord(keyEquivalent: .init("g"), modifiers: [.command])
+    )
+    static let findPrevious = KeyboardShortcutDefinition(
+        id: "edit.findPrevious",
+        name: "Find Previous",
+        category: "Edit",
+        defaultChord: KeyChord(keyEquivalent: .init("g"), modifiers: [.command, .shift])
+    )
+}
+```
+
+## View Controls
+
+### Zoom
+
+| Shortcut | Action |
+|----------|--------|
+| **⌘+** | Zoom in |
+| **⌘-** | Zoom out |
+| **⌘0** | Reset zoom to 100% |
+
+### Interface Elements
+
+```swift
+// From OraCommands.swift:87-95
+Button(isSidebarHidden ? "Show Sidebar" : "Hide Sidebar") {
+    NotificationCenter.default.post(name: .toggleSidebar, object: nil)
+}
+.keyboardShortcut(KeyboardShortcuts.App.toggleSidebar.keyboardShortcut)
+
+Button(isToolbarHidden ? "Show Toolbar" : "Hide Toolbar") {
+    NotificationCenter.default.post(name: .toggleToolbar, object: NSApp.keyWindow)
+}
+.keyboardShortcut(KeyboardShortcuts.App.toggleToolbar.keyboardShortcut)
+```
+
+| Shortcut | Action |
+|----------|--------|
+| **⌘S** | Toggle sidebar visibility |
+| **⌘⇧D** | Toggle toolbar visibility |
+
+## History & Bookmarks
+
+| Shortcut | Action |
+|----------|--------|
+| **⌘Y** | Show browsing history |
+
+## Developer Tools
+
+<CardGroup cols={2}>
+  <Card title="Toggle DevTools" icon="code">
+    **⌘⌥I** - Open or close Developer Tools
+  </Card>
+  <Card title="Hard Reload" icon="arrows-rotate">
+    **⌘⇧R** - Reload ignoring cache
+  </Card>
+</CardGroup>
+
+```swift
+// From KeyboardShortcuts.swift:267-280
+enum Developer {
+    static let toggleDevTools = KeyboardShortcutDefinition(
+        id: "developer.toggleDevTools",
+        name: "Toggle DevTools",
+        category: "Developer",
+        defaultChord: KeyChord(keyEquivalent: .init("i"), modifiers: [.command, .option])
+    )
+    static let reloadIgnoringCache = KeyboardShortcutDefinition(
+        id: "developer.reloadIgnoringCache",
+        name: "Reload (Ignoring Cache)",
+        category: "Developer",
+        defaultChord: KeyChord(keyEquivalent: .init("r"), modifiers: [.command, .shift])
+    )
+}
+```
+
+## Application Controls
+
+| Shortcut | Action |
+|----------|--------|
+| **⌘,** | Open Preferences/Settings |
+| **⌘H** | Hide Ora Browser |
+| **⌘Q** | Quit Ora Browser |
+
+## Customizing Shortcuts
+
+<Steps>
+  <Step title="Open Settings">
+    Press **⌘,** or go to **Ora Browser → Settings**
+  </Step>
+  <Step title="Navigate to Keyboard">
+    Select the **Keyboard** section in Settings
+  </Step>
+  <Step title="Choose Shortcut">
+    Click on any shortcut you want to customize
+  </Step>
+  <Step title="Record New Shortcut">
+    Press your desired key combination to record the new shortcut
+  </Step>
+  <Step title="Save Changes">
+    The shortcut is automatically saved and takes effect immediately
+  </Step>
+</Steps>
+
+<Note>
+  Shortcuts are stored per-user and persist across app launches. You can reset any shortcut to its default value at any time.
+</Note>
+
+## Keyboard Shortcut System
+
+Ora Browser uses a sophisticated keyboard shortcut system that supports customization:
+
+```swift
+// From Keyboard.swift:103-126
+struct KeyboardShortcutDefinition: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let category: String
+    let defaultChord: KeyChord
+
+    /// Current chord (either custom override or default)
+    var currentChord: KeyChord {
+        if let custom = CustomKeyboardShortcutManager.shared.getShortcut(id: id) {
+            return custom
+        }
+        return defaultChord
+    }
+
+    /// SwiftUI KeyboardShortcut for use in views
+    var keyboardShortcut: KeyboardShortcut {
+        currentChord.keyboardShortcut
+    }
+
+    /// Display string for the current shortcut (used in settings UI)
+    var display: String {
+        currentChord.display
+    }
+}
+```
+
+### Shortcut Categories
+
+All shortcuts are organized into categories for easy management:
+
+- **Tabs** - Tab creation, closing, and navigation
+- **Navigation** - Page history and reload
+- **Window** - Window management and fullscreen
+- **Address** - Address bar interactions
+- **Edit** - Find and edit operations
+- **History** - History browser
+- **Zoom** - Page zoom controls
+- **Developer** - Developer tools
+- **App** - Application-level controls
+
+<Warning>
+  When customizing shortcuts, avoid conflicts with system-wide macOS shortcuts to prevent unexpected behavior.
+</Warning>
+
+## Quick Reference
+
+Download or print this quick reference card for common shortcuts:
+
+<Accordion title="Essential Shortcuts">
+  - **⌘T** - New tab
+  - **⌘W** - Close tab
+  - **⌘L** - Focus address bar
+  - **⌘R** - Reload page
+  - **⌘⇧N** - New private window
+  - **⌘F** - Find in page
+  - **⌘[** and **⌘]** - Back/Forward
+</Accordion>
+
+<Accordion title="Advanced Shortcuts">
+  - **⌃⇥** and **⌃⇧⇥** - Switch tabs
+  - **⌘1-9** - Jump to specific tab
+  - **⌥⌘→** and **⌥⌘←** - Move tabs
+  - **⌘⇧R** - Hard reload
+  - **⌘⌥I** - Toggle DevTools
+  - **⌘S** - Toggle sidebar
+</Accordion>

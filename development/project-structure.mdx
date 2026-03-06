@@ -1,0 +1,788 @@
+---
+title: Project Structure
+description: Understanding Ora Browser's codebase organization and architecture
+icon: folder-tree
+---
+
+Ora Browser is built with a modular architecture using Swift 5.9, SwiftUI, and AppKit for macOS 15.0+. The codebase is organized for clarity, maintainability, and scalability.
+
+## Repository Overview
+
+```
+browser/
+├── ora/                    # Main application source code
+├── scripts/                # Build and setup scripts
+├── project.yml            # XcodeGen project configuration
+├── .swiftlint.yml         # Linting rules
+├── .swiftformat           # Formatting configuration
+└── CONTRIBUTING.md        # Development guidelines
+```
+
+<Note>
+The project uses **XcodeGen** to generate the Xcode project. Edit `project.yml` and run `xcodegen` to regenerate.
+</Note>
+
+## Core Directory Structure
+
+The `ora/` directory contains all application code organized by purpose:
+
+<Tabs>
+  <Tab title="Overview">
+    ```
+    ora/
+    ├── OraRoot.swift          # Root view and app initialization
+    ├── oraApp.swift           # App entry point and configuration
+    ├── OraCommands.swift      # Menu bar commands
+    ├── Common/                # Shared utilities and extensions
+    ├── Models/                # Data models (SwiftData)
+    ├── Services/              # Business logic and managers
+    ├── Modules/               # Feature-specific UI modules
+    ├── UI/                    # Reusable UI components
+    ├── Resources/             # Assets and data files
+    └── Assets.xcassets       # Images and icons
+    ```
+  </Tab>
+
+  <Tab title="File Count">
+    The project contains approximately **46 Swift files** in the main `ora/` directory (excluding subdirectories), organized into focused modules.
+    
+    <CardGroup cols={3}>
+      <Card title="Services" icon="gear">
+        ~20 files
+      </Card>
+      <Card title="UI Components" icon="palette">
+        ~15 files
+      </Card>
+      <Card title="Modules" icon="grid">
+        Multiple subdirectories
+      </Card>
+    </CardGroup>
+  </Tab>
+</Tabs>
+
+## Application Entry Points
+
+### Main Application Files
+
+<Steps>
+  <Step title="oraApp.swift">
+    The `@main` entry point that defines the app structure:
+    
+    ```swift oraApp.swift
+    @main
+    struct OraApp: App {
+        @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+        
+        var body: some Scene {
+            WindowGroup(id: "normal") {
+                OraRoot()
+                    .frame(minWidth: 500, minHeight: 360)
+            }
+            .defaultSize(width: 1440, height: 900)
+            .windowStyle(.hiddenTitleBar)
+            
+            WindowGroup("Private", id: "private") {
+                OraRoot(isPrivate: true)
+            }
+            
+            Settings {
+                SettingsContentView()
+            }
+        }
+    }
+    ```
+    
+    Defines two window types:
+    - **Normal browsing**: Standard persistent tabs
+    - **Private browsing**: In-memory storage only
+  </Step>
+
+  <Step title="AppState (oraApp.swift:59)">
+    Central observable state for the application:
+    
+    ```swift oraApp.swift
+    class AppState: ObservableObject {
+        @Published var showLauncher: Bool = false
+        @Published var launcherSearchText: String = ""
+        @Published var showFinderIn: UUID?
+        @Published var isFloatingTabSwitchVisible: Bool = false
+        @Published var isFullscreen: Bool = false
+    }
+    ```
+  </Step>
+
+  <Step title="OraRoot.swift">
+    Root view component that initializes core managers:
+    
+    ```swift OraRoot.swift
+    struct OraRoot: View {
+        @StateObject private var appState = AppState()
+        @StateObject private var tabManager: TabManager
+        @StateObject private var historyManager: HistoryManager
+        @StateObject private var downloadManager: DownloadManager
+        @StateObject private var mediaController: MediaController
+        @StateObject private var sidebarManager = SidebarManager()
+        @StateObject private var toolbarManager = ToolbarManager()
+        
+        var body: some View {
+            BrowserView()
+                .environmentObject(appState)
+                .environmentObject(tabManager)
+                // ... other environment objects
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Common Directory
+
+Shared utilities, extensions, and constants used throughout the app:
+
+```
+Common/
+├── Constants/
+│   ├── AppEvents.swift           # NotificationCenter events
+│   ├── ContainerConstants.swift  # Container configurations
+│   ├── KeyboardShortcuts.swift   # Keyboard shortcut definitions
+│   └── Theme.swift               # App theme and colors
+├── Extensions/
+│   ├── Color+Hex.swift           # Hex color support
+│   ├── View+Modifiers.swift      # Custom SwiftUI modifiers
+│   ├── View+Shortcuts.swift      # Keyboard shortcut extensions
+│   └── NSWindow+Extensions.swift # Window utilities
+├── Representables/
+│   ├── WindowAccessor.swift      # NSWindow access from SwiftUI
+│   ├── WindowReader.swift        # Window state reading
+│   └── KeyCaptureView.swift      # Keyboard event handling
+├── Shapes/
+│   └── ConditionallyConcentricRectangle.swift
+└── Utils/
+    ├── SettingsStore.swift       # UserDefaults wrapper
+    ├── TabUtils.swift            # Tab helper functions
+    └── ClipboardUtils.swift      # Clipboard operations
+```
+
+### Theme System
+
+The theme system provides consistent styling:
+
+```swift Theme.swift
+struct Theme: Equatable {
+    let colorScheme: ColorScheme
+    
+    var primary: Color { Color(hex: "#f3e5d6") }
+    var primaryDark: Color { Color(hex: "#141414") }
+    var accent: Color { Color(hex: "#FF5F57") }
+    var background: Color {
+        colorScheme == .dark ? Color(hex: "#0F0E0E") : .white
+    }
+    // ... more theme colors
+}
+
+// Usage
+@Environment(\.theme) private var theme
+Text("Hello").foregroundColor(theme.foreground)
+```
+
+## Models Directory
+
+SwiftData models for persistent storage:
+
+```
+Models/
+├── Tab.swift              # Tab state and WebKit integration
+├── TabContainer.swift     # Tab grouping and spaces
+├── History.swift          # Browsing history entries
+├── Download.swift         # Download tracking
+├── Folder.swift           # Bookmark folders
+├── SearchEngine.swift     # Search engine configurations
+└── Keyboard.swift         # Custom keyboard shortcuts
+```
+
+### Tab Model
+
+The core `Tab` model (463 lines) integrates SwiftData persistence with WebKit:
+
+```swift Tab.swift
+@Model
+class Tab: ObservableObject, Identifiable {
+    // MARK: - Persisted Properties
+    var id: UUID
+    var url: URL
+    var title: String
+    var favicon: URL?
+    var type: TabType  // .pinned, .fav, .normal
+    var order: Int
+    var backgroundColorHex: String = "#000000"
+    
+    // MARK: - Transient Properties (not persisted)
+    @Transient var webView: WKWebView = WKWebView()
+    @Transient @Published var isLoading: Bool = false
+    @Transient @Published var backgroundColor: Color = .black
+    @Transient var navigationDelegate: WebViewNavigationDelegate?
+    @Transient var isPrivate: Bool = false
+    
+    // MARK: - Relationships
+    @Relationship(inverse: \TabContainer.tabs) var container: TabContainer
+    
+    // MARK: - Lifecycle
+    func restoreTransientState(
+        historyManager: HistoryManager,
+        downloadManager: DownloadManager,
+        tabManager: TabManager,
+        isPrivate: Bool
+    ) {
+        // Recreate WKWebView and delegates after deserialization
+    }
+}
+```
+
+<Note>
+**@Transient** properties are not persisted to disk. This is crucial for `WKWebView` which cannot be serialized.
+</Note>
+
+## Services Directory
+
+Business logic, state management, and system integration:
+
+```
+Services/
+├── TabManager.swift                  # Tab lifecycle and coordination
+├── HistoryManager.swift              # Browsing history
+├── DownloadManager.swift             # Download handling
+├── MediaController.swift             # Media playback state
+├── SearchEngineService.swift         # Search engine logic
+├── FaviconService.swift              # Favicon fetching and caching
+├── PrivacyService.swift              # Cache/cookie clearing
+├── UpdateService.swift               # Sparkle auto-updates
+├── AppearanceManager.swift           # Light/dark mode
+├── SidebarManager.swift              # Sidebar state
+├── ToolbarManager.swift              # Toolbar visibility
+├── CustomKeyboardShortcutManager.swift
+├── DefaultBrowserManager.swift       # System default browser
+├── WebViewNavigationDelegate.swift   # WebKit navigation
+├── TabScriptHandler.swift            # JavaScript injection
+├── KeyModifierListener.swift         # Global keyboard events
+└── Importer.swift                    # Import from other browsers
+```
+
+### Service Architecture
+
+<Tabs>
+  <Tab title="Manager Pattern">
+    Managers coordinate related functionality:
+    
+    ```swift TabManager.swift
+    class TabManager: ObservableObject {
+        @Published var tabs: [Tab] = []
+        @Published var activeTab: Tab?
+        
+        private let modelContext: ModelContext
+        let mediaController: MediaController
+        
+        func openTab(url: URL, focusAfterOpening: Bool = true) {
+            // Create and configure new tab
+        }
+        
+        func closeActiveTab() {
+            // Handle tab closure with history
+        }
+        
+        func selectTabAtIndex(_ index: Int) {
+            // Switch to specific tab
+        }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Singleton Services">
+    Some services use shared instances:
+    
+    ```swift AppearanceManager.swift
+    class AppearanceManager: ObservableObject {
+        static let shared = AppearanceManager()
+        
+        @Published var appearance: AppAppearance = .system
+        
+        func updateAppearance() {
+            NSApp.appearance = appearance.nsAppearance
+        }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Delegation">
+    WebKit navigation uses delegation:
+    
+    ```swift WebViewNavigationDelegate.swift
+    class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
+        weak var tab: Tab?
+        var onURLChange: ((URL?) -> Void)?
+        var onTitleChange: ((String?) -> Void)?
+        var onLoadingChange: ((Bool) -> Void)?
+        
+        func webView(_ webView: WKWebView, 
+                     didFinish navigation: WKNavigation!) {
+            onTitleChange?(webView.title)
+            onLoadingChange?(false)
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Modules Directory
+
+Feature-specific UI organized by functionality:
+
+```
+Modules/
+├── Browser/              # Main browser view and split view
+│   ├── BrowserView.swift
+│   ├── BrowserSplitView.swift
+│   ├── BrowserContentContainer.swift
+│   └── FloatingSidebarOverlay.swift
+├── Sidebar/              # Tab list and navigation
+│   ├── TabList/
+│   └── BottomOption/
+├── URLBar/               # Address bar and controls
+├── Launcher/             # Quick launcher (Cmd+L)
+│   ├── Main/
+│   └── Suggestions/
+├── Settings/             # Preferences UI
+│   └── Sections/
+│       ├── GeneralSettingsView.swift
+│       ├── SearchEngineSettingsView.swift
+│       ├── ShortcutsSettingsView.swift
+│       ├── PrivacySecuritySettingsView.swift
+│       └── SpacesSettingsView.swift
+├── TabSwitch/            # Ctrl+Tab switcher
+├── Find/                 # In-page search (Cmd+F)
+├── Player/               # Media controls
+├── EmojiPicker/          # Emoji selector for tabs
+├── Importer/             # Browser import wizard
+└── SplitView/            # Split screen browsing
+```
+
+### Module Organization
+
+Each module is self-contained with its views and logic:
+
+<Steps>
+  <Step title="Browser Module">
+    Core browsing interface:
+    
+    ```swift BrowserView.swift
+    struct BrowserView: View {
+        @EnvironmentObject var appState: AppState
+        @EnvironmentObject var tabManager: TabManager
+        @EnvironmentObject var sidebarManager: SidebarManager
+        
+        var body: some View {
+            BrowserSplitView()
+                .overlay(alignment: .top) {
+                    if !toolbarManager.isToolbarHidden {
+                        URLBar()
+                    }
+                }
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Settings Module">
+    Multi-section preferences organized by category:
+    
+    ```swift SettingsContentView.swift
+    struct SettingsContentView: View {
+        var body: some View {
+            TabView {
+                GeneralSettingsView()
+                    .tabItem { Label("General", systemImage: "gear") }
+                
+                SearchEngineSettingsView()
+                    .tabItem { Label("Search", systemImage: "magnifyingglass") }
+                
+                ShortcutsSettingsView()
+                    .tabItem { Label("Shortcuts", systemImage: "command") }
+            }
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+## UI Directory
+
+Reusable UI components used across modules:
+
+```
+UI/
+├── Buttons/
+│   ├── OraButton.swift           # Standard button styles
+│   └── URLBarButton.swift        # Address bar buttons
+├── Dialog/
+│   ├── DialogManager.swift       # Modal dialog system
+│   ├── DialogModel.swift         # Dialog configuration
+│   └── DialogView.swift          # Dialog presentation
+├── Toast/
+│   ├── ToastManager.swift        # Toast notifications
+│   └── ToastView.swift
+├── Icons/
+│   └── (System icon wrappers)
+├── Inputs/
+│   └── (Custom text fields)
+├── Modifiers/
+│   └── (Reusable view modifiers)
+├── TabItem.swift                 # Tab visual representation
+├── FavTabItem.swift              # Favorite tab styling
+├── WebView.swift                 # WebKit SwiftUI wrapper
+├── URLBar.swift                  # Address bar component
+├── WindowControls.swift          # Traffic light buttons
+└── StatusPageView.swift          # Error pages
+```
+
+### Component Examples
+
+<Tabs>
+  <Tab title="Dialog System">
+    Centralized modal dialogs:
+    
+    ```swift DialogManager.swift
+    class DialogManager: ObservableObject {
+        @Published var dialogs: [DialogModel] = []
+        
+        func confirm(
+            title: String,
+            message: String,
+            confirmLabel: String = "OK",
+            variant: DialogVariant = .default,
+            onConfirm: @escaping () -> Void,
+            onCancel: (() -> Void)? = nil
+        ) {
+            let dialog = DialogModel(
+                title: title,
+                message: message,
+                confirmLabel: confirmLabel,
+                variant: variant,
+                onConfirm: onConfirm,
+                onCancel: onCancel
+            )
+            dialogs.append(dialog)
+        }
+    }
+    
+    // Usage from OraRoot.swift:148
+    dialogManager.confirm(
+        title: "Quit Ora?",
+        message: "Are you sure you want to quit?",
+        confirmLabel: "Quit",
+        variant: .destructive,
+        onConfirm: { NSApp.terminate(nil) }
+    )
+    ```
+  </Tab>
+
+  <Tab title="WebView Wrapper">
+    SwiftUI wrapper for WKWebView:
+    
+    ```swift WebView.swift
+    struct WebView: NSViewRepresentable {
+        let tab: Tab
+        
+        func makeNSView(context: Context) -> WKWebView {
+            return tab.webView
+        }
+        
+        func updateNSView(_ nsView: WKWebView, context: Context) {
+            // Update configuration if needed
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Project Configuration
+
+### XcodeGen (project.yml)
+
+The project is generated from `project.yml`:
+
+```yaml project.yml
+name: Ora
+options:
+  bundleIdPrefix: com.orabrowser
+
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.6.0
+  Inject:
+    url: https://github.com/krzysztofzablocki/Inject
+    from: 1.5.2
+  FaviconFinder:
+    url: https://github.com/will-lumley/FavIconFinder
+    exactVersion: 5.1.5
+
+targets:
+  ora:
+    type: application
+    platform: "macOS"
+    deploymentTarget: "15.0"
+    sources:
+      - path: ora
+    dependencies:
+      - package: Sparkle
+      - package: Inject
+      - package: FaviconFinder
+```
+
+<Warning>
+**Never edit `Ora.xcodeproj` directly.** Always modify `project.yml` and regenerate:
+
+```bash
+xcodegen
+```
+</Warning>
+
+### Build Configurations
+
+<Tabs>
+  <Tab title="Debug">
+    Development build with hot reloading:
+    
+    ```yaml
+    Debug:
+      ASSETCATALOG_COMPILER_APPICON_NAME: OraIconDev
+      CODE_SIGN_ENTITLEMENTS: ora/ora-debug.entitlements
+      EMIT_FRONTEND_COMMAND_LINES: YES  # For InjectionIII
+      OTHER_LDFLAGS: "-Xlinker -interposable"  # Hot reload support
+    ```
+    
+    Debug builds load InjectionIII for hot reloading:
+    
+    ```swift oraApp.swift
+    #if DEBUG
+    Bundle(path: "/Applications/InjectionIII.app/Contents/Resources/macOSInjection.bundle")?.load()
+    #endif
+    ```
+  </Tab>
+
+  <Tab title="Release">
+    Optimized production build:
+    
+    ```yaml
+    Release:
+      ASSETCATALOG_COMPILER_APPICON_NAME: OraIcon
+      CODE_SIGN_ENTITLEMENTS: ora/ora.entitlements
+    ```
+    
+    Release builds:
+    - No hot reloading overhead
+    - Optimized compilation
+    - Production app icon
+    - Standard entitlements
+  </Tab>
+</Tabs>
+
+## Architecture Patterns
+
+### State Management
+
+<Steps>
+  <Step title="Environment Objects">
+    Share state down the view hierarchy:
+    
+    ```swift
+    // In OraRoot.swift
+    BrowserView()
+        .environmentObject(tabManager)
+        .environmentObject(historyManager)
+    
+    // In any child view
+    @EnvironmentObject var tabManager: TabManager
+    ```
+  </Step>
+
+  <Step title="Published Properties">
+    Trigger view updates on changes:
+    
+    ```swift
+    class TabManager: ObservableObject {
+        @Published var tabs: [Tab] = []
+        @Published var activeTab: Tab?
+    }
+    ```
+  </Step>
+
+  <Step title="NotificationCenter">
+    System-wide events (see AppEvents.swift):
+    
+    ```swift
+    // Post event
+    NotificationCenter.default.post(name: .showLauncher, object: window)
+    
+    // Observe event
+    NotificationCenter.default.addObserver(
+        forName: .showLauncher,
+        object: nil,
+        queue: .main
+    ) { note in
+        appState.showLauncher.toggle()
+    }
+    ```
+  </Step>
+</Steps>
+
+### Persistence Strategy
+
+<CardGroup cols={2}>
+  <Card title="SwiftData" icon="database">
+    Primary storage for tabs, history, downloads
+    ```swift
+    @Model class Tab { }
+    ModelContext.save()
+    ```
+  </Card>
+  <Card title="UserDefaults" icon="sliders">
+    Settings and preferences
+    ```swift
+    SettingsStore.shared.autoUpdateEnabled
+    ```
+  </Card>
+  <Card title="File System" icon="folder">
+    Favicon cache, downloads
+    ```swift
+    FileManager.default.faviconDirectory
+    ```
+  </Card>
+  <Card title="In-Memory" icon="memory">
+    Private browsing mode
+    ```swift
+    OraRoot(isPrivate: true)
+    ```
+  </Card>
+</CardGroup>
+
+## Hot Reloading Support
+
+Development workflow uses [InjectionIII](https://github.com/johnno1962/InjectionIII) for instant SwiftUI updates:
+
+```swift OraRoot.swift
+@ObserveInjection var inject
+
+var body: some View {
+    BrowserView()
+        .enableInjection()
+}
+```
+
+<Note>
+**See [Hot Reloading Guide](/development/hot-reloading)** for setup instructions.
+</Note>
+
+## Dependencies
+
+External packages managed via Swift Package Manager:
+
+<CardGroup cols={3}>
+  <Card title="Sparkle" icon="sparkles">
+    Auto-update framework
+    
+    Version: 2.6.0+
+  </Card>
+  <Card title="Inject" icon="bolt">
+    Hot reloading support (debug only)
+    
+    Version: 1.5.2+
+  </Card>
+  <Card title="FaviconFinder" icon="image">
+    Favicon discovery and download
+    
+    Version: 5.1.5
+  </Card>
+</CardGroup>
+
+## Key Files Reference
+
+<Tabs>
+  <Tab title="Entry Points">
+    | File | Line Count | Purpose |
+    |------|------------|----------|
+    | `oraApp.swift` | 117 | App entry, window setup |
+    | `OraRoot.swift` | 284 | Root view, manager init |
+    | `OraCommands.swift` | ~200 | Menu bar commands |
+  </Tab>
+
+  <Tab title="Core Models">
+    | File | Line Count | Purpose |
+    |------|------------|----------|
+    | `Tab.swift` | 463 | Tab state & WebKit |
+    | `TabContainer.swift` | ~100 | Tab grouping |
+    | `History.swift` | ~50 | History entries |
+    | `Download.swift` | ~100 | Download tracking |
+  </Tab>
+
+  <Tab title="Major Services">
+    | File | Line Count | Purpose |
+    |------|------------|----------|
+    | `TabManager.swift` | ~600 | Tab lifecycle |
+    | `WebViewNavigationDelegate.swift` | ~600 | Navigation events |
+    | `SearchEngineService.swift` | ~400 | Search integration |
+    | `MediaController.swift` | ~300 | Media playback |
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<Steps>
+  <Step title="Follow the Structure">
+    Place new files in the appropriate directory:
+    - **Models**: Data structures with SwiftData
+    - **Services**: Business logic and state management
+    - **Modules**: Feature-specific views
+    - **UI**: Reusable components
+    - **Common**: Shared utilities
+  </Step>
+
+  <Step title="Maintain Modularity">
+    Keep modules independent:
+    ```swift
+    // Good - inject dependencies
+    struct BrowserView: View {
+        @EnvironmentObject var tabManager: TabManager
+    }
+    
+    // Bad - tight coupling
+    struct BrowserView: View {
+        let tabManager = TabManager.shared  // Avoid singletons
+    }
+    ```
+  </Step>
+
+  <Step title="Use XcodeGen">
+    Always regenerate project after structure changes:
+    ```bash
+    # Edit project.yml first, then:
+    xcodegen
+    ```
+  </Step>
+</Steps>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Code Style Guide" icon="code" href="/development/code-style">
+    Formatting and conventions
+  </Card>
+  <Card title="Contributing" icon="code-pull-request" href="/development/contributing">
+    How to contribute code
+  </Card>
+  <Card title="Setup Guide" icon="rocket" href="/development/setup">
+    Development environment setup
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/development/architecture">
+    High-level design patterns
+  </Card>
+</CardGroup>

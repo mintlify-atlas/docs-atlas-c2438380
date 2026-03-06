@@ -1,0 +1,360 @@
+---
+title: Hot Reloading
+description: Set up live SwiftUI updates with InjectionIII for rapid development
+---
+
+Ora supports live UI hot reloading via [InjectionIII](https://github.com/johnno1962/InjectionIII), allowing you to see SwiftUI changes instantly without rebuilding your app. This dramatically speeds up UI development.
+
+## What is Hot Reloading?
+
+Hot reloading lets you modify Swift files and see changes appear in your running app immediately—without recompiling or restarting. When you save a file, InjectionIII:
+
+1. Recompiles only the changed file
+2. Injects the new code into the running app
+3. Triggers SwiftUI views to re-render
+
+<Note>
+  Hot reloading is **Debug-only**. All InjectionIII code, bundle loads, and linker flags are completely disabled in Release builds.
+</Note>
+
+## Setup Instructions
+
+<Steps>
+  <Step title="Install InjectionIII">
+    Download and install InjectionIII from the [Mac App Store](https://apps.apple.com/app/injectioniii/id1380446739).
+
+    <Note>
+      InjectionIII is a free, open-source tool maintained by [John Holdsworth](https://github.com/johnno1962).
+    </Note>
+  </Step>
+
+  <Step title="Launch InjectionIII">
+    1. Open the InjectionIII app
+    2. Click the InjectionIII menu bar icon
+    3. Select **Open Project**
+    4. Navigate to and select your `browser` folder (the repository root)
+
+    The menu bar icon should show the project path once loaded.
+  </Step>
+
+  <Step title="Build and Run in Debug Mode">
+    In Xcode:
+    1. Ensure the **Debug** scheme is selected (not Release)
+    2. Press **⌘R** to build and run the app
+    3. Watch for a green status indicator in the InjectionIII menu bar icon
+
+    A **green icon** confirms that InjectionIII successfully connected to your running app.
+
+    <Warning>
+      If the icon stays red or gray, InjectionIII is not connected. Check that you opened the correct project folder and are running a Debug build.
+    </Warning>
+  </Step>
+
+  <Step title="Test Hot Reloading">
+    1. Open any SwiftUI view file in Xcode
+    2. Make a visible change (e.g., modify text, colors, or layout)
+    3. Save the file (**⌘S**)
+    4. Watch the change appear instantly in your running app
+
+    No rebuild required!
+  </Step>
+</Steps>
+
+## How It Works
+
+Ora's hot reloading setup involves several components working together:
+
+### 1. Bundle Loading
+
+The app loads InjectionIII bundles at startup in Debug builds:
+
+```swift oraApp.swift
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+            Bundle(path: "/Applications/InjectionIII.app/Contents/Resources/macOSInjection.bundle")?.load()
+            Bundle(path: "/Applications/InjectionIII.app/Contents/Resources/macOSSwiftUISupport.bundle")?.load()
+        #endif
+    }
+}
+```
+
+These bundles enable communication between your app and InjectionIII.
+
+### 2. Build Configuration
+
+Special Debug-only build settings in `project.yml` enable hot reloading:
+
+```yaml project.yml
+configs:
+  Debug:
+    EMIT_FRONTEND_COMMAND_LINES: YES
+    OTHER_LDFLAGS: "-Xlinker -interposable"
+```
+
+**`EMIT_FRONTEND_COMMAND_LINES = YES`**
+- Tells Xcode to output the exact compiler flags used for each file
+- InjectionIII reads these flags to recompile individual files correctly
+- Without this, InjectionIII can't match your build configuration
+
+**`-Xlinker -interposable`**
+- Makes function calls replaceable at runtime
+- Allows InjectionIII to swap out old implementations with new ones
+- Without this, code changes wouldn't take effect until a full rebuild
+
+### 3. Inject Package Integration
+
+Ora uses the [Inject](https://github.com/krzysztofzablocki/Inject) Swift package to observe injection events:
+
+```yaml project.yml
+packages:
+  Inject:
+    url: https://github.com/krzysztofzablocki/Inject
+    from: 1.5.2
+```
+
+The package provides:
+- `@ObserveInjection` property wrapper to detect code changes
+- `.enableInjection()` view modifier to trigger re-rendering
+
+### 4. View Instrumentation
+
+Root views use `@ObserveInjection` to respond to code changes:
+
+```swift OraRoot.swift
+struct OraRoot: View {
+    @ObserveInjection var inject
+    
+    var body: some View {
+        BrowserView()
+            // ... environment objects ...
+            .enableInjection()  // Enables hot reloading
+    }
+}
+```
+
+When InjectionIII injects new code:
+1. `@ObserveInjection` detects the change
+2. `.enableInjection()` triggers view invalidation
+3. SwiftUI re-evaluates the view hierarchy
+4. Changes appear on screen
+
+## Adding Hot Reload Support to New Views
+
+To enable hot reloading in your own views:
+
+```swift
+import Inject
+
+struct MyCustomView: View {
+    @ObserveInjection var inject
+    
+    var body: some View {
+        VStack {
+            Text("Hello, World!")
+            // Your content here
+        }
+        .enableInjection()
+    }
+}
+```
+
+<Steps>
+  <Step title="Import Inject">
+    Add `import Inject` at the top of your file.
+  </Step>
+  <Step title="Add @ObserveInjection">
+    Declare `@ObserveInjection var inject` in your view struct.
+  </Step>
+  <Step title="Call .enableInjection()">
+    Add `.enableInjection()` modifier to your view's body.
+  </Step>
+</Steps>
+
+<Note>
+  You don't need to add this to every view—only root-level views or views you're actively developing. Child views will update automatically when their parent re-renders.
+</Note>
+
+## Usage Tips
+
+### Making Changes
+
+1. **Edit and save**: Modify any Swift file and save (**⌘S**)
+2. **Watch for confirmation**: InjectionIII shows a notification when injection succeeds
+3. **See results**: Changes appear immediately in your running app
+
+### What You Can Change
+
+**Works well:**
+- SwiftUI view bodies
+- Computed properties
+- Function implementations
+- Colors, fonts, spacing
+- Layout changes
+- String content
+
+**Requires rebuild:**
+- Adding/removing/reordering stored properties
+- Changing struct/class definitions
+- Modifying initializers
+- Adding new files (must build once first)
+
+### Troubleshooting Changes
+
+If changes don't appear:
+
+1. **Check the InjectionIII status**: Green icon = connected, Red = disconnected
+2. **Verify Debug build**: Release builds don't support hot reloading
+3. **Look for errors**: InjectionIII shows compilation errors in its console
+4. **Try a full rebuild**: Some changes require recompiling the whole app
+
+## Limitations
+
+### Stored Property Changes
+
+You **cannot** add, remove, or reorder stored properties during injection:
+
+```swift
+struct MyView: View {
+    @State private var count = 0        // Can't add this during injection
+    @StateObject var manager = Manager() // Can't add this during injection
+    
+    var body: some View {
+        // Body changes work fine
+    }
+}
+```
+
+**Why?** Changing stored properties would alter the struct's memory layout, which can't be hot-swapped safely.
+
+**Solution:** Add the property and do a full rebuild (**⌘B**), then continue hot reloading.
+
+### Private Members in Extensions
+
+Private members in extensions may not inject correctly:
+
+```swift
+// May not hot reload properly
+extension MyView {
+    private var helper: some View {
+        Text("Helper")
+    }
+}
+```
+
+**Solution:** Use `internal` access (the default) during active development:
+
+```swift
+extension MyView {
+    var helper: some View {  // No access modifier = internal
+        Text("Helper")
+    }
+}
+```
+
+You can change it back to `private` before committing if needed.
+
+### SwiftData Models
+
+Changes to `@Model` classes may not hot reload properly. For model changes, do a full rebuild.
+
+## Performance Impact
+
+<Note>
+  Hot reloading has **zero impact** on Release builds. All InjectionIII code is gated behind `#if DEBUG` and completely absent from production builds.
+</Note>
+
+**Debug build overhead:**
+- Slightly larger binary size (due to `-Xlinker -interposable`)
+- Minimal runtime performance difference
+- Worth it for the development speed boost
+
+**Release builds:**
+- No InjectionIII dependencies
+- No bundle loading
+- No linker flags
+- Fully optimized
+
+## Advanced Configuration
+
+### InjectionIII Settings
+
+Access InjectionIII preferences via the menu bar icon:
+
+- **File Watcher**: Choose between FSEvents (faster) or kqueue (more compatible)
+- **Notifications**: Enable/disable injection success/failure notifications
+- **Auto-unhide**: Automatically bring the simulator/app to the front after injection
+
+### Excluding Files
+
+To prevent InjectionIII from watching certain files, add them to a `.injectionignore` file:
+
+```bash .injectionignore
+# Ignore files in specific directories
+oraTests/
+oraUITests/
+build/
+
+# Ignore specific files
+ora/Models/*.swift
+```
+
+### Injection Logging
+
+InjectionIII logs all compilation and injection events. View logs:
+
+1. Click the InjectionIII menu bar icon
+2. Select **Show Console**
+3. View real-time compilation output and errors
+
+Useful for debugging injection failures.
+
+## Frequently Asked Questions
+
+### Why isn't hot reloading working?
+
+**Check these:**
+- InjectionIII is running and shows a green icon
+- You opened the correct project folder in InjectionIII
+- Running a Debug build (not Release)
+- The file you're editing is part of the Xcode target
+- No compilation errors (check InjectionIII console)
+
+### Can I use this in production?
+
+No. Hot reloading is Debug-only and completely disabled in Release builds. It's purely a development tool.
+
+### Does this work with SwiftUI previews?
+
+InjectionIII and Xcode Previews serve different purposes:
+- **Previews**: Fast iteration on isolated views
+- **InjectionIII**: Live updates in your fully running app
+
+Use whichever fits your workflow better, or use both!
+
+### Is there a performance cost?
+
+Debug builds are slightly slower due to `-Xlinker -interposable`, but the difference is minimal. Release builds have zero overhead.
+
+### What about Simulator vs. Real Device?
+
+InjectionIII works with both macOS apps and iOS apps running in the Simulator. It does **not** support physical iOS devices.
+
+For Ora Browser (a macOS app), you're always running on the real device (your Mac), so this isn't a concern.
+
+## Resources
+
+<CardGroup cols={2}>
+  <Card title="InjectionIII GitHub" icon="github" href="https://github.com/johnno1962/InjectionIII">
+    Official InjectionIII repository and documentation
+  </Card>
+  <Card title="Inject Package" icon="swift" href="https://github.com/krzysztofzablocki/Inject">
+    Swift package for SwiftUI hot reloading integration
+  </Card>
+  <Card title="Development Setup" icon="wrench" href="/development/setup">
+    Complete development environment setup guide
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/development/architecture">
+    Learn about Ora's architecture
+  </Card>
+</CardGroup>

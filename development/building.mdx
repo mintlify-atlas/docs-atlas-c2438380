@@ -1,0 +1,303 @@
+---
+title: Building Ora Browser
+description: Build Ora Browser from source for development and distribution
+icon: hammer
+---
+
+## Prerequisites
+
+Before building Ora Browser, ensure you have the following installed:
+
+- **macOS 14.0** or later
+- **Xcode 15** or later (Swift 5.9)
+- **Homebrew** (for developer tooling)
+
+<Note>
+  The current minimum deployment target is macOS 15.0. The project uses Swift 5.9 and requires Xcode 15 or later.
+</Note>
+
+## Initial Setup
+
+<Steps>
+  <Step title="Clone the repository">
+    Clone the Ora Browser repository to your local machine:
+    ```bash
+    git clone https://github.com/the-ora/browser.git
+    cd browser
+    ```
+  </Step>
+
+  <Step title="Run the setup script">
+    The setup script will install all required tools and configure your development environment:
+    ```bash
+    ./scripts/setup.sh
+    ```
+
+    This script automatically:
+    - Installs required Homebrew packages (xcodegen, swiftlint, swiftformat, xcbeautify, lefthook)
+    - Installs git hooks for code formatting and linting
+    - Generates the Xcode project from `project.yml`
+  </Step>
+
+  <Step title="Open in Xcode">
+    Open the generated Xcode project:
+    ```bash
+    open Ora.xcodeproj
+    ```
+  </Step>
+</Steps>
+
+## Development Builds
+
+### Building in Xcode
+
+To build and run Ora Browser for development:
+
+1. Select the **ora** scheme in Xcode
+2. Choose your target device (Mac)
+3. Press **⌘R** to build and run
+
+The Debug configuration includes:
+- Developer icon variant (OraIconDev)
+- Hot reloading support via InjectionIII
+- Interposable linking for runtime code replacement
+- No code signing requirements
+
+### Building from Command Line
+
+For a quick debug build without Xcode:
+
+```bash
+./scripts/xcbuild-debug.sh
+```
+
+This script builds the Debug configuration with:
+- No code signing (`CODE_SIGN_IDENTITY=""`)
+- Pretty-printed output via xcbeautify
+- Faster iteration for testing
+
+<CodeGroup>
+```bash scripts/xcbuild-debug.sh
+#!/bin/bash
+set -o pipefail && xcodebuild build \
+  -scheme ora \
+  -destination "platform=macOS" \
+  -configuration Debug \
+  CODE_SIGN_IDENTITY="" \
+  CODE_SIGNING_REQUIRED=NO | xcbeautify
+```
+</CodeGroup>
+
+## Hot Reloading
+
+Ora supports live UI updates during development using [InjectionIII](https://github.com/johnno1962/InjectionIII).
+
+<Steps>
+  <Step title="Install InjectionIII">
+    Download InjectionIII from the [Mac App Store](https://apps.apple.com/app/injectioniii/id1380446739)
+  </Step>
+
+  <Step title="Connect to your project">
+    1. Launch InjectionIII
+    2. Click the menu bar icon
+    3. Select **Open Project**
+    4. Navigate to your `browser` folder
+  </Step>
+
+  <Step title="Build and run">
+    Build and run from Xcode in Debug mode. You should see a green status indicator in the InjectionIII menu bar icon.
+  </Step>
+</Steps>
+
+### Using Hot Reload
+
+Once connected, edit any Swift file and save—changes will appear instantly without rebuilding.
+
+To add hot reload support to a new view:
+
+```swift
+import Inject
+
+struct MyView: View {
+    @ObserveInjection var inject
+
+    var body: some View {
+        Text("Hello, Ora!")
+            .enableInjection()
+    }
+}
+```
+
+<Warning>
+  Hot reloading has limitations:
+  - Cannot add, remove, or reorder stored properties
+  - `private` members in extensions may not inject correctly
+  - Debug-only feature with zero impact on Release builds
+</Warning>
+
+### How It Works
+
+The Debug build configuration enables hot reloading through:
+
+```yaml project.yml
+configs:
+  Debug:
+    EMIT_FRONTEND_COMMAND_LINES: YES
+    OTHER_LDFLAGS: "-Xlinker -interposable"
+```
+
+- `EMIT_FRONTEND_COMMAND_LINES` exposes compiler flags for InjectionIII
+- `-Xlinker -interposable` makes functions replaceable at runtime
+- Root views use `@ObserveInjection` to re-evaluate after injection
+
+## Project Configuration
+
+Ora uses **XcodeGen** to generate the Xcode project from a YAML specification.
+
+### Regenerating the Project
+
+After modifying `project.yml`, regenerate the Xcode project:
+
+```bash
+xcodegen
+```
+
+<Note>
+  Always edit `project.yml` instead of Xcode project settings. The `.xcodeproj` is regenerated and should not be manually modified.
+</Note>
+
+### Project Structure
+
+The `project.yml` defines:
+
+<CodeGroup>
+```yaml Dependencies
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.6.0
+  Inject:
+    url: https://github.com/krzysztofzablocki/Inject
+    from: 1.5.2
+  FaviconFinder:
+    url: https://github.com/will-lumley/FavIconFinder
+    exactVersion: 5.1.5
+```
+
+```yaml Build Configurations
+configs:
+  Debug:
+    ASSETCATALOG_COMPILER_APPICON_NAME: OraIconDev
+    CODE_SIGN_ENTITLEMENTS: ora/ora-debug.entitlements
+    EMIT_FRONTEND_COMMAND_LINES: YES
+    OTHER_LDFLAGS: "-Xlinker -interposable"
+  Release:
+    ASSETCATALOG_COMPILER_APPICON_NAME: OraIcon
+    CODE_SIGN_ENTITLEMENTS: ora/ora.entitlements
+```
+
+```yaml Version Info
+settings:
+  base:
+    MARKETING_VERSION: 0.2.11
+    CURRENT_PROJECT_VERSION: 99
+    PRODUCT_NAME: Ora
+    PRODUCT_BUNDLE_IDENTIFIER: com.orabrowser.app
+```
+</CodeGroup>
+
+## Build Scripts
+
+The project includes automated build scripts in the `scripts/` directory:
+
+<CardGroup cols={2}>
+  <Card title="setup.sh" icon="gear">
+    Installs dependencies, configures git hooks, and generates the Xcode project
+  </Card>
+  <Card title="xcbuild-debug.sh" icon="code">
+    Quick debug build from command line without code signing
+  </Card>
+  <Card title="build-release.sh" icon="box">
+    Full release build with signing, notarization, and DMG creation
+  </Card>
+  <Card title="create-release.sh" icon="rocket">
+    End-to-end release process with versioning and deployment
+  </Card>
+</CardGroup>
+
+## Code Quality
+
+### Automatic Formatting
+
+Code formatting and linting are enforced via git hooks:
+
+```yaml lefthook.yml
+pre-commit:
+  parallel: true
+  commands:
+    swiftformat:
+      glob: "**/*.swift"
+      run: swiftformat {staged_files} --quiet
+      stage_fixed: true
+    swiftlint:
+      glob: "**/*.swift"
+      run: swiftlint lint --fix --use-alternative-excluding {staged_files}
+      stage_fixed: true
+
+pre-push:
+  commands:
+    build:
+      run: ./scripts/xcbuild-debug.sh
+```
+
+### Manual Formatting
+
+Run formatting tools manually:
+
+```bash
+# Format all Swift files
+swiftformat . --quiet
+
+# Lint and auto-fix issues
+swiftlint --quiet
+```
+
+<Note>
+  Git hooks are installed automatically by `./scripts/setup.sh` using lefthook. They run before every commit and push.
+</Note>
+
+## Troubleshooting
+
+### Xcode Build Errors
+
+If you encounter build errors:
+
+1. **Clean the build folder**: Product → Clean Build Folder (⇧⌘K)
+2. **Regenerate the project**: Run `xcodegen` in the project root
+3. **Reset Package Cache**: File → Packages → Reset Package Caches
+
+### Missing Dependencies
+
+If Homebrew packages are missing, run:
+
+```bash
+./scripts/setup.sh
+```
+
+### Hot Reload Not Working
+
+1. Verify InjectionIII shows green status
+2. Ensure Debug configuration is selected
+3. Check that the project path is correct in InjectionIII
+4. Rebuild the project (⌘B)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Testing" icon="flask" href="/development/testing">
+    Learn how to run tests and write new test cases
+  </Card>
+  <Card title="Releases" icon="rocket" href="/development/releases">
+    Understand the release process and distribution
+  </Card>
+</CardGroup>

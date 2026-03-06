@@ -1,0 +1,249 @@
+---
+title: Installation
+description: Set up Ora Browser on your macOS system
+icon: download
+---
+
+Ora Browser is built natively for macOS using Swift and SwiftUI. Follow these steps to get started with development or build the app from source.
+
+<Warning>
+  Ora is currently in early stages of development and **not yet ready for day-to-day use**. A beta version with core functionalities will be released soon.
+</Warning>
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed on your system:
+
+<CardGroup cols={2}>
+  <Card title="macOS 14.0+" icon="apple">
+    macOS Sonoma or later
+  </Card>
+  <Card title="Xcode 15+" icon="hammer">
+    Xcode 15 or later with Swift 5.9
+  </Card>
+  <Card title="Homebrew" icon="beer-mug">
+    Package manager for macOS
+  </Card>
+  <Card title="Command Line Tools" icon="terminal">
+    Xcode Command Line Tools
+  </Card>
+</CardGroup>
+
+### Install Homebrew
+
+If you don't have Homebrew installed, install it first:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+### Install Xcode
+
+Download and install Xcode from the [Mac App Store](https://apps.apple.com/app/xcode/id497799835) or [Apple Developer](https://developer.apple.com/xcode/).
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the Ora Browser repository from GitHub:
+    
+    ```bash
+    git clone https://github.com/the-ora/browser.git
+    cd browser
+    ```
+  </Step>
+
+  <Step title="Run Setup Script">
+    The setup script will install required development tools and configure your environment:
+    
+    ```bash
+    ./scripts/setup.sh
+    ```
+    
+    This script will:
+    - Install XcodeGen for project file generation
+    - Install SwiftFormat and SwiftLint for code quality
+    - Install xcbeautify for better build output
+    - Install Lefthook for git hooks
+    - Set up git hooks automatically
+    - Generate the Xcode project file (`Ora.xcodeproj`)
+    
+    <Note>
+      The script checks for existing installations and only installs missing dependencies.
+    </Note>
+  </Step>
+
+  <Step title="Open in Xcode">
+    Open the generated Xcode project:
+    
+    ```bash
+    open Ora.xcodeproj
+    ```
+    
+    Wait for Xcode to resolve Swift Package Manager dependencies. This may take a few minutes on first launch.
+  </Step>
+
+  <Step title="Select Scheme and Build">
+    In Xcode:
+    1. Select the **ora** scheme from the scheme dropdown
+    2. Choose your Mac as the destination
+    3. Build and run the app using **⌘R** or Product → Run
+    
+    <Note>
+      The first build may take several minutes as Xcode compiles all dependencies.
+    </Note>
+  </Step>
+</Steps>
+
+## Build Configurations
+
+Ora Browser has two build configurations:
+
+### Debug Build
+
+- Uses development icon (`OraIconDev`)
+- Includes hot reloading support via InjectionIII
+- Enables developer-friendly compiler flags
+- Uses debug entitlements (`ora-debug.entitlements`)
+
+### Release Build
+
+- Uses production icon (`OraIcon`)
+- Optimized for performance
+- Production entitlements (`ora.entitlements`)
+- Ready for distribution
+
+## Project Dependencies
+
+Ora Browser uses the following Swift packages:
+
+<CodeGroup>
+```yaml Sparkle
+URL: https://github.com/sparkle-project/Sparkle
+Version: 2.6.0+
+Purpose: Automatic app updates
+```
+
+```yaml Inject
+URL: https://github.com/krzysztofzablocki/Inject
+Version: 1.5.2+
+Purpose: Hot reloading for development
+```
+
+```yaml FaviconFinder
+URL: https://github.com/will-lumley/FavIconFinder
+Version: 5.1.5
+Purpose: Fetching website favicons
+```
+</CodeGroup>
+
+## Development Tools
+
+The following tools are automatically installed by the setup script:
+
+| Tool | Purpose | Command |
+|------|---------|---------|
+| **XcodeGen** | Generates Xcode project from `project.yml` | `xcodegen` |
+| **SwiftFormat** | Automatic code formatting | `swiftformat . --quiet` |
+| **SwiftLint** | Swift code linting | `swiftlint --quiet` |
+| **xcbeautify** | Beautifies Xcode build output | Used in CI/CD |
+| **Lefthook** | Git hooks manager | `lefthook install` |
+
+## Hot Reloading (Optional)
+
+For faster development with live UI updates, set up InjectionIII:
+
+<Steps>
+  <Step title="Install InjectionIII">
+    Download from the [Mac App Store](https://apps.apple.com/app/injectioniii/id1380446739)
+  </Step>
+
+  <Step title="Configure InjectionIII">
+    1. Launch InjectionIII
+    2. Click **Open Project** from the menu bar icon
+    3. Select your `browser` folder
+  </Step>
+
+  <Step title="Run in Debug Mode">
+    Build and run from Xcode. You should see a green status in the InjectionIII menu bar icon.
+  </Step>
+
+  <Step title="Make Changes">
+    Edit any Swift file and save—changes appear instantly without rebuilding!
+  </Step>
+</Steps>
+
+<Note>
+  Hot reloading only works in Debug builds and has zero impact on Release builds.
+</Note>
+
+## Running Tests
+
+### From Xcode
+
+Press **⌘U** or go to Product → Test
+
+### From Command Line
+
+```bash
+xcodebuild test -scheme ora -destination "platform=macOS"
+```
+
+## Regenerating the Xcode Project
+
+If you need to modify project settings, edit `project.yml` and regenerate:
+
+```bash
+xcodegen
+```
+
+<Warning>
+  Never modify `Ora.xcodeproj` directly. All project configuration should be done in `project.yml`.
+</Warning>
+
+## Troubleshooting
+
+### Build Failures
+
+If you encounter build errors:
+
+1. **Clean build folder**: Product → Clean Build Folder (⇧⌘K)
+2. **Reset package cache**: File → Packages → Reset Package Caches
+3. **Regenerate project**: Run `xcodegen` again
+4. **Restart Xcode**: Sometimes a full restart is needed
+
+### Missing Dependencies
+
+If setup script fails to install dependencies:
+
+```bash
+# Install manually via Homebrew
+brew install xcodegen swiftlint swiftformat xcbeautify lefthook
+```
+
+### Git Hooks Not Working
+
+Reinstall git hooks:
+
+```bash
+lefthook install
+```
+
+### Signing Issues
+
+For development, use **Automatic** code signing in Xcode:
+1. Select the **ora** target
+2. Go to Signing & Capabilities
+3. Set "Automatically manage signing" to enabled
+4. Select your Apple Developer team
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Learn how to use Ora Browser
+  </Card>
+  <Card title="Contributing" icon="code-pull-request" href="https://github.com/the-ora/browser/blob/main/CONTRIBUTING.md">
+    Contribute to Ora Browser
+  </Card>
+</CardGroup>

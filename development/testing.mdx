@@ -1,0 +1,395 @@
+---
+title: Testing
+description: Run and write tests for Ora Browser
+icon: flask
+---
+
+## Test Infrastructure
+
+Ora Browser uses **Swift Testing** for unit and UI tests. The test suite is organized into:
+
+- **oraTests**: Unit tests for core functionality
+- **oraUITests**: UI automation and integration tests
+
+## Running Tests
+
+### In Xcode
+
+Run the complete test suite:
+
+1. Select the **ora** scheme
+2. Press **⌘U** or choose Product → Test
+
+Run individual tests:
+- Click the diamond icon next to any test function
+- Right-click a test and select "Run Test"
+
+<Note>
+  Tests run in the Debug configuration by default. You can view test results in the Test Navigator (⌘6).
+</Note>
+
+### From Command Line
+
+Run all tests via xcodebuild:
+
+```bash
+xcodebuild test \
+  -scheme ora \
+  -destination "platform=macOS"
+```
+
+For prettier output, pipe through xcbeautify:
+
+```bash
+xcodebuild test \
+  -scheme ora \
+  -destination "platform=macOS" | xcbeautify
+```
+
+### Pre-Push Testing
+
+Tests are automatically run before pushing to ensure code quality:
+
+```yaml lefthook.yml
+pre-push:
+  commands:
+    build:
+      run: ./scripts/xcbuild-debug.sh
+```
+
+<Warning>
+  If the build fails in the pre-push hook, your push will be blocked. Fix any build errors before pushing.
+</Warning>
+
+## Writing Tests
+
+### Unit Tests
+
+Ora uses Swift Testing framework for writing tests:
+
+```swift oraTests/oraTests.swift
+@testable import ora
+import Testing
+
+struct OraTests {
+    @Test func example() {
+        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
+    }
+}
+```
+
+### Test Structure
+
+Follow this pattern for unit tests:
+
+```swift
+import Testing
+@testable import ora
+
+struct BrowserViewModelTests {
+    @Test func testNavigationToURL() {
+        let viewModel = BrowserViewModel()
+        let url = URL(string: "https://example.com")!
+        
+        viewModel.navigate(to: url)
+        
+        #expect(viewModel.currentURL == url)
+    }
+    
+    @Test func testInvalidURLHandling() {
+        let viewModel = BrowserViewModel()
+        let invalidURL = "not a url"
+        
+        #expect(throws: URLError.self) {
+            try viewModel.navigate(to: URL(string: invalidURL)!)
+        }
+    }
+}
+```
+
+### UI Tests
+
+UI tests verify the user interface and interactions:
+
+```swift oraUITests/oraUITests.swift
+import XCTest
+
+final class oraUITests: XCTestCase {
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+    }
+
+    func testLaunchPerformance() throws {
+        measure(metrics: [XCTApplicationLaunchMetric()]) {
+            XCUIApplication().launch()
+        }
+    }
+}
+```
+
+## Test Guidelines
+
+### When to Write Tests
+
+<Steps>
+  <Step title="New features">
+    All new features should include appropriate unit tests covering:
+    - Happy path functionality
+    - Edge cases and error handling
+    - Invalid input scenarios
+  </Step>
+
+  <Step title="Bug fixes">
+    When fixing bugs:
+    1. Write a failing test that reproduces the bug
+    2. Fix the bug
+    3. Verify the test passes
+  </Step>
+
+  <Step title="Refactoring">
+    Ensure existing tests continue to pass after refactoring:
+    ```bash
+    xcodebuild test -scheme ora -destination "platform=macOS"
+    ```
+  </Step>
+</Steps>
+
+### Test Requirements
+
+Before submitting a pull request:
+
+- [ ] All tests pass
+- [ ] Code builds without warnings
+- [ ] New functionality includes tests
+- [ ] Tests are well-documented
+- [ ] No flaky or intermittent failures
+
+## Test Organization
+
+### Directory Structure
+
+```
+browser/
+├── oraTests/
+│   ├── oraTests.swift           # Unit test examples
+│   └── Info.plist
+├── oraUITests/
+│   ├── oraUITests.swift         # UI test suite
+│   ├── oraUITestsLaunchTests.swift  # Launch tests
+│   └── Info.plist
+```
+
+### Test Target Configuration
+
+Tests are configured in `project.yml`:
+
+```yaml
+schemes:
+  ora:
+    test:
+      config: Debug
+```
+
+## Continuous Integration
+
+### Local Validation
+
+Before pushing code, ensure your changes pass local validation:
+
+```bash
+# Run formatter
+swiftformat . --quiet
+
+# Run linter
+swiftlint --quiet
+
+# Build debug
+./scripts/xcbuild-debug.sh
+
+# Run tests
+xcodebuild test -scheme ora -destination "platform=macOS"
+```
+
+### Git Hooks
+
+Git hooks automatically enforce quality checks:
+
+<CodeGroup>
+```yaml Pre-Commit
+pre-commit:
+  parallel: true
+  commands:
+    swiftformat:
+      glob: "**/*.swift"
+      run: swiftformat {staged_files} --quiet
+      stage_fixed: true
+    swiftlint:
+      glob: "**/*.swift"
+      run: swiftlint lint --fix --use-alternative-excluding {staged_files}
+      stage_fixed: true
+```
+
+```yaml Pre-Push
+pre-push:
+  commands:
+    build:
+      run: ./scripts/xcbuild-debug.sh
+```
+</CodeGroup>
+
+## Testing Best Practices
+
+### Keep Tests Fast
+
+- Unit tests should run in milliseconds
+- Avoid network calls in unit tests
+- Use mocks for external dependencies
+- Keep UI tests focused and minimal
+
+### Write Meaningful Tests
+
+```swift
+// Good: Clear test name and assertion
+@Test func testSearchEngineSelectionPersistsAcrossLaunches() {
+    let settings = BrowserSettings()
+    settings.searchEngine = .google
+    settings.save()
+    
+    let newSettings = BrowserSettings()
+    #expect(newSettings.searchEngine == .google)
+}
+
+// Bad: Vague test name
+@Test func testSettings() {
+    // What is this testing?
+}
+```
+
+### Test One Thing at a Time
+
+```swift
+// Good: Each test has a single focus
+@Test func testNavigationUpdatesCurrentURL() {
+    // ...
+}
+
+@Test func testNavigationAddsHistoryEntry() {
+    // ...
+}
+
+// Bad: Testing multiple behaviors
+@Test func testNavigation() {
+    // Tests URL update, history, and favorites
+}
+```
+
+### Use Descriptive Assertions
+
+```swift
+// Good: Clear assertion with context
+#expect(
+    viewModel.tabs.count == 3,
+    "Expected 3 tabs after opening new tab"
+)
+
+// Bad: Vague assertion
+#expect(viewModel.tabs.count == 3)
+```
+
+## Debugging Tests
+
+### Test Failures
+
+When a test fails:
+
+1. **Read the failure message**: Swift Testing provides detailed error context
+2. **Run the test in isolation**: Focus on the failing test
+3. **Use breakpoints**: Add breakpoints in the test and implementation
+4. **Check test data**: Verify test inputs and expected outputs
+
+### Debugging in Xcode
+
+```swift
+@Test func testComplexBehavior() {
+    let viewModel = BrowserViewModel()
+    
+    // Add breakpoint here
+    viewModel.performAction()
+    
+    // Inspect state in debugger
+    #expect(viewModel.state == .ready)
+}
+```
+
+### Console Output
+
+Add logging to understand test execution:
+
+```swift
+@Test func testWithLogging() {
+    print("Starting test with initial state: \(viewModel.state)")
+    viewModel.performAction()
+    print("After action, state: \(viewModel.state)")
+    
+    #expect(viewModel.state == .ready)
+}
+```
+
+## Performance Testing
+
+### Measuring Performance
+
+Test launch performance:
+
+```swift
+func testLaunchPerformance() throws {
+    measure(metrics: [XCTApplicationLaunchMetric()]) {
+        XCUIApplication().launch()
+    }
+}
+```
+
+### Performance Baselines
+
+1. Run performance tests multiple times
+2. Xcode will establish a baseline
+3. Future runs compare against the baseline
+4. Investigate significant regressions
+
+## Troubleshooting
+
+### Tests Not Running
+
+- Ensure test target is selected in scheme
+- Clean build folder (⇧⌘K)
+- Reset test data: Product → Test → Delete Test Data
+
+### Flaky Tests
+
+- Add waits for asynchronous operations
+- Avoid hardcoded timeouts
+- Use XCTest expectations for async code
+
+### Build Failures
+
+If tests fail to build:
+
+```bash
+# Regenerate project
+xcodegen
+
+# Clean and rebuild
+xcodebuild clean
+xcodebuild build -scheme ora -destination "platform=macOS"
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Building" icon="hammer" href="/development/building">
+    Learn how to build Ora Browser for development
+  </Card>
+  <Card title="Releases" icon="rocket" href="/development/releases">
+    Understand the release and distribution process
+  </Card>
+</CardGroup>

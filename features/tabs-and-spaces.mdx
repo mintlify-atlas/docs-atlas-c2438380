@@ -1,0 +1,341 @@
+---
+title: Tabs and Spaces
+description: Organize your browsing with powerful tab management and container-based workspaces
+icon: square-3-stack-3d
+---
+
+Ora Browser introduces a unique approach to tab management through **Spaces** (also called containers). Each Space is an isolated workspace with its own tabs, settings, and browsing data—perfect for separating work, personal projects, or different contexts.
+
+## What are Spaces?
+
+Spaces are container-based workspaces that isolate your browsing contexts. Each Space maintains:
+
+- Separate tabs and browsing sessions
+- Independent browsing history
+- Isolated cookies and website data
+- Custom search engine preferences
+- Unique folder structure for bookmarks
+
+<Note>
+Spaces are implemented using the `TabContainer` model, which uses SwiftData for persistence and WebKit's data store isolation.
+</Note>
+
+## Creating and Managing Spaces
+
+### Create a New Space
+
+Click the **New Space** button in the sidebar or use the Container Switcher at the bottom of the sidebar.
+
+```swift
+// Creating a new space programmatically
+func createContainer(name: String = "Default", emoji: String = "•") -> TabContainer {
+    let newContainer = TabContainer(name: name, emoji: emoji)
+    modelContext.insert(newContainer)
+    activeContainer = newContainer
+    try? modelContext.save()
+    return newContainer
+}
+```
+
+Each Space is identified by:
+- **Name**: A descriptive label for the workspace
+- **Emoji**: A visual identifier for quick recognition
+- **UUID**: A unique identifier for data isolation
+
+### Switch Between Spaces
+
+Use the **Container Switcher** at the bottom of the sidebar to quickly switch between your Spaces. The most recently accessed Space is automatically selected when you launch Ora.
+
+```swift
+// Switching to a different space
+func activateContainer(_ container: TabContainer, activateLastAccessedTab: Bool = true) {
+    activeContainer = container
+    container.lastAccessedAt = Date()
+    
+    // Automatically activate the most recently used tab in that space
+    if let lastAccessedTab = container.tabs
+        .sorted(by: { $0.lastAccessedAt ?? Date() > $1.lastAccessedAt ?? Date() }).first,
+        lastAccessedTab.isWebViewReady
+    {
+        activeTab = lastAccessedTab
+        lastAccessedTab.lastAccessedAt = Date()
+    }
+    
+    try? modelContext.save()
+}
+```
+
+## Tab Types
+
+Ora supports three types of tabs, each with different behaviors:
+
+### Normal Tabs
+
+Regular browsing tabs that are automatically managed based on your settings.
+
+```swift
+enum TabType: String, Codable {
+    case pinned
+    case fav
+    case normal
+}
+```
+
+### Pinned Tabs
+
+Tabs that persist across sessions and retain their original URL. Perfect for frequently accessed sites.
+
+<Steps>
+  <Step title="Pin a Tab">
+    Right-click on any tab and select "Pin Tab" or use the keyboard shortcut `⌘P`
+  </Step>
+  
+  <Step title="Saved URL">
+    Pinned tabs remember their original URL in the `savedURL` property
+  </Step>
+  
+  <Step title="Auto-restore">
+    When you reopen the browser, pinned tabs automatically load their saved URL
+  </Step>
+</Steps>
+
+```swift
+func togglePinTab(_ tab: Tab) {
+    if tab.type == .pinned {
+        tab.type = .normal
+        tab.savedURL = nil
+    } else {
+        tab.type = .pinned
+        tab.savedURL = tab.url
+    }
+    try? modelContext.save()
+}
+```
+
+### Favorite Tabs
+
+Similar to pinned tabs but shown in a separate favorites section for even quicker access.
+
+## Tab Organization
+
+### Reordering Tabs
+
+Drag and drop tabs within the sidebar to reorder them. Tabs maintain their position using an `order` property.
+
+```swift
+func reorderTabs(from: Tab, to: Tab) {
+    let dir = from.order - to.order > 0 ? -1 : 1
+    let tabOrder = self.tabs.sorted { dir == -1 ? $0.order > $1.order : $0.order < $1.order }
+    
+    var started = false
+    for (index, tab) in tabOrder.enumerated() {
+        if tab.id == from.id { started = true }
+        if tab.id == to.id { break }
+        if started {
+            let currentTab = tab
+            let nextTab = tabOrder[index + 1]
+            let tempOrder = currentTab.order
+            currentTab.order = nextTab.order
+            nextTab.order = tempOrder
+        }
+    }
+}
+```
+
+### Moving Tabs Between Spaces
+
+You can move tabs from one Space to another by changing the tab's container relationship.
+
+```swift
+func moveTabToContainer(_ tab: Tab, toContainer: TabContainer) {
+    tab.container = toContainer
+    try? modelContext.save()
+}
+```
+
+## Quick Tab Navigation
+
+### Floating Tab Switcher
+
+Press `⌃Tab` to open the Floating Tab Switcher, which shows visual previews of your recently accessed tabs.
+
+<CardGroup cols={2}>
+  <Card title="Recent Tabs" icon="clock-rotate-left">
+    Shows up to 5 most recently accessed tabs with live previews
+  </Card>
+  
+  <Card title="Quick Switch" icon="arrow-right-arrow-left">
+    Navigate with `⌃Tab` (forward) and `⌃⇧Tab` (backward)
+  </Card>
+</CardGroup>
+
+```swift
+var recentTabs: [Tab] {
+    guard let container = activeContainer else { return [] }
+    return Array(container.tabs
+        .sorted { ($0.lastAccessedAt ?? Date.distantPast) > ($1.lastAccessedAt ?? Date.distantPast) }
+        .prefix(SettingsStore.shared.maxRecentTabs)
+    )
+}
+```
+
+### Numbered Tab Selection
+
+Quickly jump to tabs 1-9 using `⌘1` through `⌘9`. Press `⌘9` to jump to the last tab.
+
+```swift
+func selectTabAtIndex(_ index: Int) {
+    guard let container = activeContainer else { return }
+    
+    let favoriteTabs = container.tabs.filter { $0.type == .fav }.sorted(by: { $0.order > $1.order })
+    let pinnedTabs = container.tabs.filter { $0.type == .pinned }.sorted(by: { $0.order > $1.order })
+    let normalTabs = container.tabs.filter { $0.type == .normal }.sorted(by: { $0.order > $1.order })
+    
+    let allTabs = favoriteTabs + pinnedTabs + normalTabs
+    
+    // Command+9 selects the last tab
+    let targetIndex = (index == 9) ? allTabs.count - 1 : index - 1
+    
+    guard targetIndex >= 0, targetIndex < allTabs.count else { return }
+    let targetTab = allTabs[targetIndex]
+    activateTab(targetTab)
+}
+```
+
+## Intelligent Tab Lifecycle
+
+### Lazy Loading
+
+Tabs are lazily loaded to improve performance. WebViews are only initialized when a tab becomes active.
+
+```swift
+func activateTab(_ tab: Tab) {
+    activeTab = tab
+    tab.lastAccessedAt = Date()
+    
+    // Lazy load WebView if not ready
+    if !tab.isWebViewReady {
+        tab.restoreTransientState(
+            historyManager: historyManager,
+            downloadManager: downloadManager,
+            tabManager: self,
+            isPrivate: tab.isPrivate
+        )
+    }
+    try? modelContext.save()
+}
+```
+
+### Automatic Cleanup
+
+Ora automatically manages memory by cleaning up inactive tabs based on your settings.
+
+<Accordion title="Tab Alive Timeout Settings">
+  Configure how long tabs remain in memory:
+  
+  - **1 hour**: Aggressive memory management
+  - **6 hours**: Balanced approach (default)
+  - **12 hours**: Keep tabs longer
+  - **1 day**: Minimal cleanup
+  - **Never**: Disable automatic cleanup
+  
+  ```swift
+  var isAlive: Bool {
+      guard let lastAccessed = lastAccessedAt else { return false }
+      let timeout = SettingsStore.shared.tabAliveTimeout
+      return Date().timeIntervalSince(lastAccessed) < timeout
+  }
+  ```
+</Accordion>
+
+### Auto-Close Inactive Tabs
+
+Configure Ora to automatically close tabs that haven't been accessed in a specified time period.
+
+```swift
+func removeOldTabs() {
+    let cutoffDate = Date().addingTimeInterval(-SettingsStore.shared.tabRemovalTimeout)
+    let allContainers = fetchContainers()
+    
+    for container in allContainers {
+        for tab in container.tabs {
+            if let lastAccessed = tab.lastAccessedAt,
+               lastAccessed < cutoffDate,
+               tab.id != activeTab?.id,
+               !tab.isPlayingMedia,
+               tab.type == .normal
+            {
+                closeTab(tab: tab)
+            }
+        }
+    }
+}
+```
+
+## Keyboard Shortcuts
+
+Master tab navigation with these essential shortcuts:
+
+| Action | Shortcut |
+|--------|----------|
+| New Tab | `⌘T` |
+| Close Tab | `⌘W` |
+| Restore Last Tab | `⌘⇧T` |
+| Next Tab | `⌃Tab` |
+| Previous Tab | `⌃⇧Tab` |
+| Pin Tab | `⌘P` |
+| Jump to Tab 1-9 | `⌘1` - `⌘9` |
+| Last Tab | `⌘9` |
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Spaces for Context" icon="folders">
+    Create separate Spaces for work, personal browsing, development, and research to keep contexts isolated
+  </Card>
+  
+  <Card title="Pin Essential Sites" icon="thumbtack">
+    Pin frequently accessed sites like email, calendar, or development tools for instant access
+  </Card>
+  
+  <Card title="Configure Auto-Cleanup" icon="broom">
+    Set appropriate tab cleanup timeouts based on your browsing patterns and memory constraints
+  </Card>
+  
+  <Card title="Name Spaces Clearly" icon="tag">
+    Use descriptive names and emojis for Spaces to quickly identify them in the switcher
+  </Card>
+</CardGroup>
+
+## Advanced Features
+
+### Session Restore
+
+Ora automatically saves your browsing session and restores all tabs and Spaces after a restart or crash.
+
+### Tab Duplication
+
+Duplicate any tab with all its history and state using the context menu.
+
+```swift
+func duplicateTab(_ tab: Tab) {
+    guard let historyManager = tab.historyManager else { return }
+    guard let newTab = openTab(
+        url: tab.url,
+        historyManager: historyManager,
+        downloadManager: tab.downloadManager,
+        focusAfterOpening: false,
+        isPrivate: tab.isPrivate,
+        loadSilently: true
+    ) else { return }
+    self.reorderTabs(from: tab, toTab: newTab)
+}
+```
+
+### Media-Playing Tabs
+
+Tabs playing media are automatically kept alive and shown with a media indicator, regardless of cleanup settings.
+
+<Warning>
+Tabs with active media playback are never automatically closed, even if they exceed the configured timeout.
+</Warning>

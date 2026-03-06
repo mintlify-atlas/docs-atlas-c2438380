@@ -1,0 +1,423 @@
+---
+title: Project Architecture
+description: Understanding Ora Browser's architecture and code organization
+---
+
+Ora Browser is built with SwiftUI and follows a modular architecture that separates concerns into distinct layers. This guide explains the project structure and key architectural patterns.
+
+## Project Structure
+
+The codebase is organized into logical directories within the `ora/` folder:
+
+```
+ora/
+├── oraApp.swift              # App entry point and delegates
+├── OraRoot.swift             # Root view and dependency injection
+├── OraCommands.swift         # Menu commands and keyboard shortcuts
+├── Common/                   # Shared utilities and extensions
+│   ├── Constants/            # App-wide constants and themes
+│   ├── Extensions/           # Swift and SwiftUI extensions
+│   ├── Representables/       # AppKit-SwiftUI bridges
+│   ├── Shapes/               # Custom SwiftUI shapes
+│   └── Utils/                # Utility classes and helpers
+├── Models/                   # Data models
+│   ├── Tab.swift
+│   ├── TabContainer.swift
+│   ├── History.swift
+│   ├── Download.swift
+│   ├── SearchEngine.swift
+│   └── Folder.swift
+├── Services/                 # Business logic and managers
+│   ├── TabManager.swift
+│   ├── HistoryManager.swift
+│   ├── DownloadManager.swift
+│   ├── FaviconService.swift
+│   ├── PrivacyService.swift
+│   └── ...
+├── UI/                       # Reusable UI components
+│   ├── Buttons/
+│   ├── Toast/
+│   ├── Dialog/
+│   └── ...
+└── Modules/                  # Feature modules
+    ├── Browser/              # Main browser view
+    ├── Sidebar/              # Tab sidebar
+    ├── Launcher/             # Quick launcher
+    ├── Settings/             # Settings screens
+    ├── SplitView/            # Split view system
+    └── ...
+```
+
+## Core Architecture
+
+### Application Entry Point
+
+The app starts in `oraApp.swift`, which defines the main `@main` struct:
+
+```swift oraApp.swift
+@main
+struct OraApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
+    private let sharedModelContainer: ModelContainer? =
+        try? ModelConfiguration.createOraContainer(isPrivate: false)
+    
+    var body: some Scene {
+        WindowGroup(id: "normal") {
+            OraRoot()
+                .frame(minWidth: 500, minHeight: 360)
+                .environmentObject(DefaultBrowserManager.shared)
+        }
+        .defaultSize(width: 1440, height: 900)
+        .windowStyle(.hiddenTitleBar)
+        
+        WindowGroup("Private", id: "private") {
+            OraRoot(isPrivate: true)
+                .frame(minWidth: 500, minHeight: 360)
+        }
+        
+        Settings {
+            SettingsContentView()
+                .modelContainer(sharedModelContainer)
+        }
+        .commands { OraCommands() }
+    }
+}
+```
+
+Key features:
+- **Dual window groups**: Separate window groups for normal and private browsing
+- **SwiftData integration**: Shared model container for settings
+- **Dependency injection**: Environment objects injected at root level
+
+### OraRoot: Dependency Injection Hub
+
+`OraRoot.swift` is the root view that initializes and injects all managers and services:
+
+```swift OraRoot.swift
+struct OraRoot: View {
+    @StateObject private var appState = AppState()
+    @StateObject private var tabManager: TabManager
+    @StateObject private var historyManager: HistoryManager
+    @StateObject private var downloadManager: DownloadManager
+    @StateObject private var mediaController: MediaController
+    @StateObject private var sidebarManager = SidebarManager()
+    @StateObject private var toolbarManager = ToolbarManager()
+    @StateObject private var dialogManager = DialogManager()
+    @StateObject private var privacyMode: PrivacyMode
+    
+    @ObserveInjection var inject  // Hot reloading support
+    
+    let tabContext: ModelContext
+    let historyContext: ModelContext
+    let downloadContext: ModelContext
+    
+    init(isPrivate: Bool = false) {
+        _privacyMode = StateObject(wrappedValue: PrivacyMode(isPrivate: isPrivate))
+        
+        // Initialize SwiftData container
+        let container = try! ModelConfiguration.createOraContainer(isPrivate: isPrivate)
+        let modelContext = ModelContext(container)
+        
+        self.tabContext = modelContext
+        self.downloadContext = modelContext
+        self.historyContext = modelContext
+        
+        // Initialize managers with dependencies
+        _historyManager = StateObject(
+            wrappedValue: HistoryManager(
+                modelContainer: container,
+                modelContext: modelContext
+            )
+        )
+        
+        let media = MediaController()
+        _mediaController = StateObject(wrappedValue: media)
+        
+        _tabManager = StateObject(
+            wrappedValue: TabManager(
+                modelContainer: container,
+                modelContext: modelContext,
+                mediaController: media
+            )
+        )
+        
+        _downloadManager = StateObject(
+            wrappedValue: DownloadManager(
+                modelContainer: container,
+                modelContext: modelContext
+            )
+        )
+    }
+    
+    var body: some View {
+        BrowserView()
+            .environmentObject(appState)
+            .environmentObject(tabManager)
+            .environmentObject(historyManager)
+            .environmentObject(downloadManager)
+            .modelContext(tabContext)
+            .enableInjection()  // Enable hot reloading
+    }
+}
+```
+
+<Note>
+  OraRoot handles the creation of SwiftData contexts and manager lifecycle. All child views receive dependencies via `@EnvironmentObject`.
+</Note>
+
+## Layer Architecture
+
+### 1. Models Layer
+
+Data models use SwiftData for persistence:
+
+```swift Models/Tab.swift
+@Model
+final class Tab {
+    @Attribute(.unique) var id: UUID
+    var url: URL
+    var title: String
+    var type: TabType  // .normal, .pinned, .fav
+    var lastAccessedAt: Date?
+    var isPlayingMedia: Bool
+    
+    // Relationships
+    var container: TabContainer?
+}
+```
+
+Key models:
+- **Tab**: Individual browser tabs
+- **TabContainer**: Groups of tabs (like spaces)
+- **History**: Browsing history entries
+- **Download**: Download manager entries
+- **SearchEngine**: Search engine configurations
+
+### 2. Services Layer
+
+Services encapsulate business logic and state management:
+
+**TabManager** (`Services/TabManager.swift`)
+- Manages tab lifecycle (create, activate, close)
+- Handles tab search and filtering
+- Coordinates with HistoryManager and DownloadManager
+- Uses `@Published` properties for reactive updates
+
+**HistoryManager** (`Services/HistoryManager.swift`)
+- Records browsing history
+- Provides search and filtering
+- Handles history cleanup
+
+**DownloadManager** (`Services/DownloadManager.swift`)
+- Manages file downloads
+- Tracks download progress
+- Integrates with WebKit's download API
+
+**FaviconService** (`Services/FaviconService.swift`)
+- Fetches and caches favicons
+- Provides fallback icons
+- Uses [FaviconFinder](https://github.com/will-lumley/FavIconFinder) library
+
+**PrivacyService** (`Services/PrivacyService.swift`)
+- Clears cookies and cache per domain
+- Manages WKWebsiteDataStore
+- Supports private browsing mode
+
+### 3. UI Layer
+
+Reusable UI components in the `UI/` directory:
+
+- **WebView**: WebKit integration with SwiftUI
+- **URLBar**: Address bar with autocomplete
+- **TabItem**: Tab list item view
+- **Toast**: Notification system
+- **Dialog**: Modal dialog system
+
+### 4. Modules Layer
+
+Feature-complete modules with their own UI and logic:
+
+**Browser Module** (`Modules/Browser/`)
+- `BrowserView.swift`: Main browser container
+- `BrowserSplitView.swift`: Split view management
+- `BrowserContentContainer.swift`: Content area wrapper
+
+**Sidebar Module** (`Modules/Sidebar/`)
+- Tab list management
+- Pinned tabs section
+- Normal tabs section
+
+**Launcher Module** (`Modules/Launcher/`)
+- Quick launcher overlay (⌘K)
+- Search and navigation
+
+**Settings Module** (`Modules/Settings/`)
+- Settings screens
+- Preference management
+
+## Key Patterns
+
+### Observable Pattern
+
+Managers use `ObservableObject` and `@Published` for reactive state:
+
+```swift
+class TabManager: ObservableObject {
+    @Published var activeTab: Tab?
+    @Published var activeContainer: TabContainer?
+}
+```
+
+Views observe changes with `@ObservedObject` or `@EnvironmentObject`:
+
+```swift
+struct TabListView: View {
+    @EnvironmentObject var tabManager: TabManager
+    
+    var body: some View {
+        ForEach(tabManager.containers) { container in
+            // ...
+        }
+    }
+}
+```
+
+### Dependency Injection
+
+Dependencies flow from `OraRoot` down via environment objects:
+
+```swift
+// In OraRoot
+.environmentObject(tabManager)
+.environmentObject(historyManager)
+
+// In child views
+@EnvironmentObject var tabManager: TabManager
+@EnvironmentObject var historyManager: HistoryManager
+```
+
+### Notification Center
+
+App-wide events use NotificationCenter for decoupled communication:
+
+```swift Common/Constants/AppEvents.swift
+extension Notification.Name {
+    static let closeActiveTab = Notification.Name("closeActiveTab")
+    static let openURL = Notification.Name("openURL")
+    static let showLauncher = Notification.Name("showLauncher")
+    static let reloadPage = Notification.Name("reloadPage")
+}
+```
+
+Listeners in `OraRoot.swift`:
+
+```swift
+NotificationCenter.default.addObserver(
+    forName: .closeActiveTab,
+    object: nil,
+    queue: .main
+) { _ in
+    tabManager.closeActiveTab()
+}
+```
+
+### SwiftData Integration
+
+SwiftData provides persistent storage:
+
+```swift
+// Model container creation
+let container = try ModelConfiguration.createOraContainer(isPrivate: false)
+let context = ModelContext(container)
+
+// Querying data
+@Query(sort: \TabContainer.lastAccessedAt, order: .reverse) 
+var containers: [TabContainer]
+
+// Saving changes
+try? modelContext.save()
+```
+
+## WebKit Integration
+
+Ora uses WebKit for rendering web content:
+
+**WKWebView Bridge** (`UI/WebView.swift`)
+- SwiftUI representable wrapper for WKWebView
+- Handles navigation delegation
+- Manages script injection
+
+**Navigation Delegate** (`Services/WebViewNavigationDelegate.swift`)
+- Intercepts navigation events
+- Records history
+- Handles downloads
+- Updates tab state
+
+**Script Handler** (`Services/TabScriptHandler.swift`)
+- Injects JavaScript into pages
+- Handles messages from web content
+- Implements custom browser features
+
+## Package Dependencies
+
+Defined in `project.yml`:
+
+```yaml project.yml
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.6.0
+  Inject:
+    url: https://github.com/krzysztofzablocki/Inject
+    from: 1.5.2
+  FaviconFinder:
+    url: https://github.com/will-lumley/FavIconFinder
+    exactVersion: 5.1.5
+```
+
+- **Sparkle**: Automatic app updates
+- **Inject**: Hot reloading support (Debug only)
+- **FaviconFinder**: Favicon fetching and caching
+
+## Build System
+
+Ora uses **XcodeGen** to generate the Xcode project from `project.yml`. This approach:
+
+- Eliminates merge conflicts in `.xcodeproj` files
+- Ensures consistent project configuration
+- Makes build settings transparent and version-controlled
+- Simplifies adding new files and targets
+
+Key build settings:
+
+```yaml project.yml
+settings:
+  base:
+    SWIFT_VERSION: 5.9
+    MARKETING_VERSION: 0.2.11
+    PRODUCT_BUNDLE_IDENTIFIER: com.orabrowser.app
+  configs:
+    Debug:
+      EMIT_FRONTEND_COMMAND_LINES: YES  # For InjectionIII
+      OTHER_LDFLAGS: "-Xlinker -interposable"  # Runtime replacement
+    Release:
+      # Optimized for performance
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Development Setup" icon="wrench" href="/development/setup">
+    Set up your development environment
+  </Card>
+  <Card title="Hot Reloading" icon="bolt" href="/development/hot-reloading">
+    Enable live SwiftUI updates with InjectionIII
+  </Card>
+  <Card title="Contributing" icon="code-pull-request" href="/development/contributing">
+    Learn the contribution workflow
+  </Card>
+  <Card title="Project Structure" icon="folder-tree" href="/development/project-structure">
+    Explore the codebase organization
+  </Card>
+</CardGroup>

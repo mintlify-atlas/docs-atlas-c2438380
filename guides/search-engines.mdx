@@ -1,0 +1,495 @@
+---
+title: Search Engines
+description: Configure and use multiple search engines with quick search aliases
+icon: magnifying-glass
+---
+
+Ora Browser supports multiple search engines with quick-switch capabilities using aliases. You can instantly search using different engines by typing an alias followed by your query.
+
+## Built-in Search Engines
+
+Ora Browser comes with pre-configured search engines, each with multiple aliases for quick access.
+
+### General Search Engines
+
+<CardGroup cols={2}>
+  <Card title="Google" icon="google">
+    **Aliases:** `google`, `goo`, `g`, `search`
+    
+    Default search engine with auto-suggestions
+  </Card>
+  <Card title="DuckDuckGo" icon="duck">
+    **Aliases:** `duckduckgo`, `ddg`, `duck`
+    
+    Privacy-focused search
+  </Card>
+  <Card title="Bing" icon="microsoft">
+    **Aliases:** `bing`, `b`, `microsoft`
+    
+    Microsoft's search engine
+  </Card>
+  <Card title="Kagi" icon="search">
+    **Aliases:** `kagi`, `kg`
+    
+    Premium ad-free search
+  </Card>
+</CardGroup>
+
+### AI Chat Engines
+
+```swift
+// From SearchEngineService.swift:72-88
+SearchEngine(
+    name: "ChatGPT",
+    color: theme?.foreground ?? .white,
+    icon: "openai-capsule-logo",
+    aliases: ["chat", "chatgpt", "gpt", "cgpt", "openai", "cha"],
+    searchURL: "https://chatgpt.com?q={query}",
+    isAIChat: true,
+    foregroundColor: theme?.background ?? .black
+),
+SearchEngine(
+    name: "Claude",
+    color: Color(hex: "#DE7C4C"),
+    icon: "",
+    aliases: ["claude", "cl", "cla", "anthropic"],
+    searchURL: "https://claude.ai?q={query}",
+    isAIChat: true
+)
+```
+
+<CardGroup cols={2}>
+  <Card title="ChatGPT" icon="robot">
+    **Aliases:** `chat`, `chatgpt`, `gpt`, `cgpt`, `openai`, `cha`
+    
+    OpenAI's ChatGPT
+  </Card>
+  <Card title="Claude" icon="comment">
+    **Aliases:** `claude`, `cl`, `cla`, `anthropic`
+    
+    Anthropic's Claude AI
+  </Card>
+  <Card title="Gemini" icon="sparkles">
+    **Aliases:** `gemini`, `gem`, `bard`, `google ai`, `gai`
+    
+    Google's Gemini AI
+  </Card>
+  <Card title="Perplexity" icon="circle-question">
+    **Aliases:** `perplexity`, `perplex`, `pplx`, `ppl`, `per`
+    
+    AI-powered answer engine
+  </Card>
+  <Card title="Grok" icon="brain">
+    **Aliases:** `grok`, `gr`, `gro`
+    
+    X's AI assistant
+  </Card>
+  <Card title="Meta AI" icon="meta">
+    **Aliases:** `meta ai`, `meta`, `llama`, `facebook ai`, `mai`
+    
+    Meta's AI assistant
+  </Card>
+  <Card title="Copilot" icon="microsoft">
+    **Aliases:** `copilot`, `microsoft copilot`, `bing chat`, `ms copilot`
+    
+    Microsoft Copilot
+  </Card>
+  <Card title="GitHub Copilot" icon="github">
+    **Aliases:** `github copilot`, `gh copilot`, `github ai`, `ghc`
+    
+    GitHub's AI assistant
+  </Card>
+</CardGroup>
+
+### Specialized Search
+
+<CardGroup cols={2}>
+  <Card title="YouTube" icon="youtube">
+    **Aliases:** `youtube`, `you`, `youtu`, `yo`, `yt`
+    
+    Search YouTube videos
+  </Card>
+  <Card title="Reddit" icon="reddit">
+    **Aliases:** `reddit`, `r`, `rd`, `rdit`, `red`
+    
+    Search Reddit discussions
+  </Card>
+  <Card title="X (Twitter)" icon="x-twitter">
+    **Aliases:** `x`, `x.com`, `twitter`, `tw`, `twtr`, `twit`, `twitt`, `twitte`
+    
+    Search posts on X
+  </Card>
+  <Card title="T3Chat" icon="comments">
+    **Aliases:** `t3chat`, `t3`, `t3c`, `tchat`
+    
+    T3 AI Chat platform
+  </Card>
+</CardGroup>
+
+## Using Search Aliases
+
+Search aliases allow you to quickly switch between search engines without changing your default.
+
+<Steps>
+  <Step title="Type an Alias">
+    In the address bar, type an alias followed by a space:
+    
+    ```
+    gpt
+    ```
+  </Step>
+  <Step title="Enter Your Query">
+    After the space, type your search query:
+    
+    ```
+    gpt how to learn swift programming
+    ```
+  </Step>
+  <Step title="Press Enter">
+    Press Enter to search using ChatGPT instead of your default search engine
+  </Step>
+</Steps>
+
+### Examples
+
+<Tabs>
+  <Tab title="AI Search">
+    ```
+    claude explain quantum computing
+    perplexity best restaurants in san francisco
+    gemini write a poem about coding
+    ```
+  </Tab>
+  <Tab title="Video & Social">
+    ```
+    yt swift tutorial for beginners
+    reddit best mechanical keyboards
+    x latest tech news
+    ```
+  </Tab>
+  <Tab title="Traditional Search">
+    ```
+    ddg privacy tools
+    kagi image search flowers
+    g weather forecast
+    ```
+  </Tab>
+</Tabs>
+
+## Search Engine Configuration
+
+The search engine system is built with flexibility in mind:
+
+```swift
+// From SearchEngineService.swift:3-21
+struct SearchEngine {
+    let name: String
+    let color: Color
+    let icon: String
+    let aliases: [String]
+    let searchURL: String
+    let isAIChat: Bool
+    let foregroundColor: Color?
+    let autoSuggestions: ((String) async -> [String])?
+}
+
+enum SearchEngineID: String, CaseIterable {
+    case youtube = "YouTube"
+    case chatgpt = "ChatGPT"
+    case claude = "Claude"
+    case google = "Google"
+    case grok = "Grok"
+    case perplexity = "Perplexity"
+    case reddit = "Reddit"
+    // ... more engines
+}
+```
+
+### Setting Default Search Engine
+
+<Steps>
+  <Step title="Open Settings">
+    Press **⌘,** or navigate to **Ora Browser → Settings**
+  </Step>
+  <Step title="Go to Search">
+    Select the **Search** section
+  </Step>
+  <Step title="Choose Default Engine">
+    Select your preferred search engine from the dropdown
+  </Step>
+  <Step title="Save">
+    Your selection is automatically saved
+  </Step>
+</Steps>
+
+<Note>
+  You can set different default search engines for different containers (like Personal, Work, etc.)
+</Note>
+
+## Custom Search Engines
+
+Add your own custom search engines with personalized aliases.
+
+### Adding a Custom Engine
+
+<Steps>
+  <Step title="Open Settings">
+    Navigate to **Settings → Search → Custom Engines**
+  </Step>
+  <Step title="Click Add Engine">
+    Click the **Add Custom Engine** button
+  </Step>
+  <Step title="Configure Engine">
+    Fill in the required fields:
+    - **Name**: Display name for the engine
+    - **Search URL**: URL with `{query}` placeholder
+    - **Aliases**: Space-separated list of shortcuts
+    - **Is AI Chat**: Mark if it's an AI chat service
+  </Step>
+  <Step title="Save Engine">
+    Click **Save** to add your custom engine
+  </Step>
+</Steps>
+
+### Custom Engine Example
+
+```swift
+// Custom search engine structure
+SearchEngine(
+    name: "MDN",
+    color: .blue,
+    icon: "",
+    aliases: ["mdn", "mozilla", "webdocs"],
+    searchURL: "https://developer.mozilla.org/en-US/search?q={query}",
+    isAIChat: false
+)
+```
+
+**Usage:**
+```
+mdn javascript array methods
+```
+
+This searches MDN Web Docs directly from the address bar.
+
+### URL Template Format
+
+When creating custom search engines, use `{query}` as the placeholder:
+
+```
+https://www.example.com/search?q={query}
+https://docs.example.com/?search={query}
+https://example.com/find/{query}
+```
+
+The `{query}` placeholder is automatically replaced with URL-encoded search terms:
+
+```swift
+// From SearchEngineService.swift:276-281
+func createSearchURL(for engine: SearchEngine, query: String) -> URL? {
+    let encodedQuery =
+        query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+    let urlString = engine.searchURL.replacingOccurrences(of: "{query}", with: encodedQuery)
+    return URL(string: urlString)
+}
+```
+
+## Auto-Suggestions
+
+Some search engines support auto-suggestions as you type.
+
+### Enabled Engines
+
+Currently, Google provides auto-suggestions:
+
+```swift
+// From SearchEngineService.swift:89-98
+SearchEngine(
+    name: "Google",
+    color: .blue,
+    icon: "",
+    aliases: ["google", "goo", "g", "search"],
+    searchURL:
+    "https://www.google.com/search?client=safari&rls=en&ie=UTF-8&oe=UTF-8&q={query}",
+    isAIChat: false,
+    autoSuggestions: self.googleSuggestions
+)
+```
+
+### How Suggestions Work
+
+```swift
+// From SearchEngineService.swift:297-316
+func googleSuggestions(_ query: String) async -> [String] {
+    guard
+        let url = createSuggestionsURL(
+            urlString:
+            "https://suggestqueries.google.com/complete/search?client=firefox&q={query}",
+            query: query
+        )
+    else {
+        return []
+    }
+
+    do {
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let decoded = try JSONDecoder().decode(SuggestResponse.self, from: data)
+        return decoded.suggestions
+    } catch {
+        logger.error("Error fetching Google suggestions: \(error.localizedDescription)")
+        return []
+    }
+}
+```
+
+Suggestions appear in real-time as you type in the address bar.
+
+## Container-Specific Search Engines
+
+Ora Browser supports different default search engines per container.
+
+### Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Personal Container" icon="home">
+    Use Google or DuckDuckGo for general web searches
+  </Card>
+  <Card title="Work Container" icon="briefcase">
+    Use Perplexity for research-oriented queries
+  </Card>
+  <Card title="Development Container" icon="code">
+    Set Google as default with quick access to docs
+  </Card>
+  <Card title="Creative Container" icon="palette">
+    Use AI chats like Claude or ChatGPT for creative work
+  </Card>
+</CardGroup>
+
+### Configuration
+
+```swift
+// From SearchEngineService.swift:224-242
+func getDefaultSearchEngine(for containerId: UUID? = nil) -> SearchEngine? {
+    // First check per-container setting
+    if let containerId,
+       let defaultId = settingsStore.defaultSearchEngineId(for: containerId),
+       let engine = searchEngines.first(where: { $0.name == defaultId })
+    {
+        return engine
+    }
+
+    // Then check global default setting
+    if let globalDefaultId = settingsStore.globalDefaultSearchEngine,
+       let engine = searchEngines.first(where: { $0.name == globalDefaultId })
+    {
+        return engine
+    }
+
+    // Fallback to Google if no custom default is set
+    return searchEngines.first(where: { $0.name == "Google" })
+}
+```
+
+<Note>
+  Container-specific settings override the global default. This allows you to have different search behaviors in different browsing contexts.
+</Note>
+
+## AI Chat Engines
+
+AI chat engines are specially marked and can have separate defaults:
+
+```swift
+// From SearchEngineService.swift:244-254
+func getDefaultAIChat(for containerId: UUID? = nil) -> SearchEngine? {
+    if let containerId,
+       let defaultId = settingsStore.defaultAIEngineId(for: containerId),
+       let engine = searchEngines.first(where: { $0.name == defaultId && $0.isAIChat })
+    {
+        return engine
+    }
+
+    // Fallback to ChatGPT if no custom default is set
+    return searchEngines.first(where: { $0.isAIChat && $0.name == "ChatGPT" })
+}
+```
+
+### AI vs Traditional Search
+
+| Feature | Traditional Search | AI Chat |
+|---------|-------------------|----------|
+| **Purpose** | Find existing web pages | Generate responses |
+| **Results** | Links to websites | Conversational answers |
+| **Use Case** | Research, navigation | Questions, creative tasks |
+| **Examples** | Google, DuckDuckGo | ChatGPT, Claude |
+
+## Search Engine Management
+
+### Editing Custom Engines
+
+1. Navigate to **Settings → Search → Custom Engines**
+2. Click on the engine you want to edit
+3. Modify the fields
+4. Click **Save Changes**
+
+### Deleting Custom Engines
+
+1. Open **Settings → Search → Custom Engines**
+2. Find the engine you want to remove
+3. Click the **Delete** button
+4. Confirm the deletion
+
+<Warning>
+  Deleting a custom search engine is permanent and cannot be undone. You'll need to re-add it with all its settings if you delete it accidentally.
+</Warning>
+
+## Tips & Best Practices
+
+<Accordion title="Use Short Aliases">
+  Create memorable 2-3 character aliases for frequently used engines:
+  - `g` for Google
+  - `gpt` for ChatGPT
+  - `yt` for YouTube
+  - `gh` for GitHub search
+</Accordion>
+
+<Accordion title="Organize by Context">
+  Set different default engines per container:
+  - **Work**: Perplexity for research
+  - **Personal**: Google for general use
+  - **Development**: GitHub Copilot for coding questions
+</Accordion>
+
+<Accordion title="Leverage AI Engines">
+  Use AI chat engines for:
+  - Explaining complex topics
+  - Generating content
+  - Coding assistance
+  - Creative brainstorming
+</Accordion>
+
+<Accordion title="Test Custom Engines">
+  After adding a custom engine:
+  1. Test it with a simple query
+  2. Verify the URL format is correct
+  3. Check that aliases work as expected
+</Accordion>
+
+## Troubleshooting
+
+### Alias Not Working
+
+- Ensure the alias doesn't conflict with existing ones
+- Check for typos in the alias spelling
+- Restart Ora Browser if needed
+
+### Custom Engine Not Appearing
+
+- Verify the search URL includes `{query}` placeholder
+- Check that the engine was saved successfully
+- Look for error messages in Settings
+
+### Wrong Search Results
+
+- Confirm the correct engine is being used
+- Check container-specific settings
+- Verify the search URL is properly formatted

@@ -1,0 +1,476 @@
+---
+title: Contributing Guidelines
+description: How to contribute to Ora Browser development
+---
+
+Thank you for your interest in contributing to Ora Browser! This guide covers everything you need to know about contributing code, reporting issues, and working with the community.
+
+## AI Assistance Disclosure
+
+<Warning>
+  If you use any kind of AI assistance to contribute, **you must disclose this** in your pull request, commit, or issue.
+</Warning>
+
+When using AI assistance, please include:
+
+- **Extent of use**: Did AI help with documentation only, or did it generate code?
+- **Response generation**: Are PR comments or commit messages AI-generated?
+- **Understanding**: You must understand the code produced and be able to answer questions about it
+
+**Exception**: Trivial tab-completion of single keywords or short phrases doesn't need disclosure.
+
+**Why we require this**: Maintainers shouldn't have to review PRs so broken that they require significant rework. If you use AI, we expect you to verify and understand what it produces.
+
+## Getting Started
+
+### Prerequisites
+
+Before contributing, ensure you have:
+
+- Completed the [development setup](/development/setup)
+- Read the [architecture overview](/development/architecture)
+- Reviewed this contribution guide
+
+### Check for Existing Work
+
+<Steps>
+  <Step title="Search Existing Issues">
+    Before starting work, search [existing issues](https://github.com/the-ora/browser/issues) to ensure no one else is already working on the same feature or bug.
+  </Step>
+
+  <Step title="Comment on Issues">
+    If you plan to work on an issue, comment to indicate you're working on it. This prevents duplicate effort.
+  </Step>
+
+  <Step title="Open a Discussion (Optional)">
+    For major changes or new features, consider opening an issue first to discuss the approach with maintainers.
+  </Step>
+</Steps>
+
+## Code Standards
+
+### Formatting and Linting
+
+Code quality is automatically enforced via git hooks (installed by `./scripts/setup.sh`):
+
+**SwiftFormat**: Handles code formatting
+```bash
+swiftformat . --quiet
+```
+
+**SwiftLint**: Enforces coding standards
+```bash
+swiftlint --quiet
+```
+
+These tools run automatically on every commit. You can also run them manually:
+
+```bash
+# Format all Swift files
+swiftformat . --quiet
+
+# Check for linting issues
+swiftlint --quiet
+
+# Auto-fix linting issues
+swiftlint --fix
+```
+
+<Note>
+  Git hooks are configured in `lefthook.yml` and automatically format your code before each commit.
+</Note>
+
+### Coding Conventions
+
+**Follow existing patterns**: Review similar code in the codebase to understand established patterns.
+
+**Use modern Swift/SwiftUI APIs**: Prefer newer APIs when possible, but maintain backward compatibility.
+
+**File organization**: Place files in the appropriate directory:
+- Models go in `Models/`
+- Services go in `Services/`
+- Reusable UI components go in `UI/`
+- Feature modules go in `Modules/`
+
+**Swift style**:
+- Use clear, descriptive names
+- Prefer `let` over `var` when possible
+- Use type inference where it improves readability
+- Document complex logic with comments
+
+### Compatibility & OS Versions
+
+**Current minimum deployment target**: macOS 15.0
+
+<Warning>
+  Maintain backward compatibility. Don't use APIs that raise the minimum OS version without discussion.
+</Warning>
+
+If a feature requires a newer OS version:
+1. Use `@available` or `#if available` checks to preserve compatibility
+2. Provide fallback behavior for older OS versions
+3. Open an issue to discuss trade-offs if raising the minimum version would significantly benefit the feature
+
+Example:
+
+```swift
+if #available(macOS 15.0, *) {
+    // Use new API
+} else {
+    // Fallback for older versions
+}
+```
+
+### Project Configuration
+
+This project uses **XcodeGen**. Never manually edit project settings in Xcode.
+
+To modify project settings:
+
+<Steps>
+  <Step title="Edit project.yml">
+    Make changes to `project.yml` in the repository root.
+  </Step>
+
+  <Step title="Regenerate the project">
+    Run `xcodegen` to regenerate `Ora.xcodeproj`:
+    
+    ```bash
+    xcodegen
+    ```
+  </Step>
+
+  <Step title="Commit both files">
+    Commit both `project.yml` and the regenerated `Ora.xcodeproj`.
+  </Step>
+</Steps>
+
+## Testing & Quality
+
+### Running Tests
+
+**In Xcode**: Press **⌘U** (Product → Test)
+
+**Via CLI**:
+```bash
+xcodebuild test -scheme ora -destination "platform=macOS"
+```
+
+### Requirements
+
+<Note>
+  All pull requests must meet these requirements:
+</Note>
+
+- [ ] All existing tests pass
+- [ ] New features include appropriate tests
+- [ ] Code builds without warnings
+- [ ] Code follows formatting standards (automatic via git hooks)
+
+## Security & Safety
+
+<Warning>
+  **Never commit private keys or sensitive data**. See [SECURITY.md](https://github.com/the-ora/browser/blob/main/SECURITY.md) for details.
+</Warning>
+
+Security best practices:
+
+- Be mindful of user privacy and data handling
+- Follow secure coding practices for web content handling
+- Never commit `.env` files or private keys
+- Use `.gitignore` to exclude sensitive files
+- Review what you're committing with `git status` and `git diff`
+
+If you discover a security issue, see [SECURITY.md](https://github.com/the-ora/browser/blob/main/SECURITY.md) for responsible disclosure.
+
+## Pull Request Process
+
+### Before You Start
+
+1. **Fork the repository** on GitHub
+2. **Clone your fork** locally:
+   ```bash
+   git clone https://github.com/YOUR_USERNAME/browser.git
+   cd browser
+   ```
+3. **Run setup**:
+   ```bash
+   ./scripts/setup.sh
+   ```
+
+### Creating a Pull Request
+
+<Steps>
+  <Step title="Create a feature branch">
+    Create a branch from `main` with a descriptive name:
+    
+    ```bash
+    git checkout -b feature/your-feature-name
+    ```
+    
+    Branch naming conventions:
+    - `feature/` - New features
+    - `fix/` - Bug fixes
+    - `docs/` - Documentation changes
+    - `refactor/` - Code refactoring
+  </Step>
+
+  <Step title="Make your changes">
+    Write your code, following the coding standards above.
+    
+    Commit frequently with clear, descriptive messages:
+    
+    ```bash
+    git add .
+    git commit -m "Add tab grouping feature"
+    ```
+    
+    Git hooks will automatically:
+    - Format your code with SwiftFormat
+    - Lint your code with SwiftLint
+    - Stage any auto-fixes
+  </Step>
+
+  <Step title="Test your changes">
+    Run tests to ensure nothing breaks:
+    
+    ```bash
+    xcodebuild test -scheme ora -destination "platform=macOS"
+    ```
+    
+    Or press **⌘U** in Xcode.
+  </Step>
+
+  <Step title="Push to your fork">
+    Push your branch to your fork:
+    
+    ```bash
+    git push origin feature/your-feature-name
+    ```
+  </Step>
+
+  <Step title="Open a pull request">
+    1. Go to the [Ora Browser repository](https://github.com/the-ora/browser)
+    2. Click "Pull requests" → "New pull request"
+    3. Click "compare across forks"
+    4. Select your fork and branch
+    5. Fill out the PR template
+  </Step>
+</Steps>
+
+### PR Requirements Checklist
+
+Your pull request must:
+
+- [ ] **Build successfully** without errors or warnings
+- [ ] **Tests pass** (all existing tests + new tests if applicable)
+- [ ] **Follow formatting standards** (automatic via git hooks)
+- [ ] **Have a descriptive title and description** explaining what changed and why
+- [ ] **Include screenshots** if UI changes were made
+- [ ] **Reference related issues** (e.g., "Fixes #123" or "Closes #456")
+- [ ] **Disclose AI assistance** if any was used
+- [ ] **Check for duplicate functionality** (ensure similar features don't already exist)
+
+### PR Description Template
+
+Use this template for your PR description:
+
+```markdown
+## Summary
+Brief description of what this PR does.
+
+## Changes
+- Change 1
+- Change 2
+- Change 3
+
+## Testing
+How did you test these changes?
+
+## Screenshots (if applicable)
+[Add screenshots here]
+
+## Related Issues
+Fixes #123
+
+## AI Assistance
+[Disclose any AI assistance used]
+```
+
+### Review Process
+
+Once you submit a PR:
+
+1. **Automated checks run**: GitHub Actions runs tests and checks
+2. **Maintainers review**: Maintainers will review your code and provide feedback
+3. **Address feedback**: Make requested changes and push updates
+4. **Approval**: Once approved, a maintainer will merge your PR
+
+<Note>
+  Be patient and respectful during the review process. Maintainers are volunteers and review PRs as time permits.
+</Note>
+
+## Reporting Issues
+
+### Bug Reports
+
+**Be descriptive and thorough**. A good bug report includes:
+
+<Steps>
+  <Step title="Environment details">
+    - macOS version (e.g., macOS 15.2)
+    - Ora Browser version (e.g., 0.2.11)
+    - Hardware (Intel or Apple Silicon)
+  </Step>
+
+  <Step title="Clear reproduction steps">
+    Step-by-step instructions to reproduce the issue:
+    
+    1. Open Ora Browser
+    2. Navigate to example.com
+    3. Click the bookmark button
+    4. Observe the error
+  </Step>
+
+  <Step title="Expected vs actual behavior">
+    - **Expected**: The page should be bookmarked
+    - **Actual**: The app crashes
+  </Step>
+
+  <Step title="Screenshots or videos">
+    Include screenshots or screen recordings if applicable.
+  </Step>
+
+  <Step title="Console logs or error messages">
+    Include relevant console output or error messages.
+  </Step>
+</Steps>
+
+### Feature Requests
+
+**Provide detailed context**. A good feature request includes:
+
+- **Clear description**: What feature do you want and why?
+- **Use case**: How would this feature be used?
+- **Alignment with goals**: How does it fit with Ora's vision (fast, secure, beautiful)?
+- **Implementation ideas**: Suggestions for how it could work
+- **Uniqueness**: Check that similar functionality doesn't already exist
+
+Example:
+
+```markdown
+## Feature Request: Tab Groups
+
+**Description**: Add the ability to group tabs into named collections.
+
+**Use Case**: Power users with many tabs open would benefit from organizing 
+tabs by project or topic (e.g., "Work", "Research", "Shopping").
+
+**Alignment**: This fits Ora's goal of being fast and efficient by helping 
+users manage tab overload.
+
+**Implementation Ideas**: Could use a sidebar section with expandable groups.
+```
+
+## Community Guidelines
+
+<Note>
+  Ora Browser is an open-source project that thrives on respectful collaboration.
+</Note>
+
+**Be respectful and constructive**:
+- Treat all contributors with respect
+- Provide constructive feedback
+- Focus on the code and ideas, not individuals
+- Help maintain a welcoming environment
+
+**Code of Conduct**: See [CODE_OF_CONDUCT.md](https://github.com/the-ora/browser/blob/main/CODE_OF_CONDUCT.md) for detailed community standards.
+
+## Release Process
+
+<Warning>
+  This section is for maintainers with release permissions. Contributors don't need to worry about releases.
+</Warning>
+
+### Creating a Release
+
+Ora uses [Sparkle](https://sparkle-project.org/) for automatic updates.
+
+<Steps>
+  <Step title="Add Sparkle dependency">
+    Sparkle is already configured in `project.yml`:
+    
+    ```yaml
+    packages:
+      Sparkle:
+        url: https://github.com/sparkle-project/Sparkle
+        from: 2.6.0
+    ```
+  </Step>
+
+  <Step title="Setup Sparkle tools">
+    Install Sparkle command-line tools:
+    
+    ```bash
+    brew install --cask sparkle
+    ./scripts/setup-sparkle.sh
+    ```
+    
+    This generates DSA keys in the `build/` directory.
+  </Step>
+
+  <Step title="Configure signing">
+    Copy the public key from `build/dsa_pub.pem` to `Info.plist` as `SUPublicEDKey`.
+    
+    Keep `build/dsa_priv.pem` secure—it signs releases.
+  </Step>
+
+  <Step title="Create a release">
+    Run the release script:
+    
+    ```bash
+    ./scripts/create-release.sh 0.2.12 build/dsa_priv.pem
+    ```
+    
+    This builds, signs, and prepares release files in `build/`.
+  </Step>
+
+  <Step title="Upload release">
+    1. Upload `build/appcast.xml` to GitHub Pages or your hosting
+    2. Upload `build/Ora-Browser.dmg` to GitHub releases
+    3. Update `SUFeedURL` in `Info.plist` to point to your appcast.xml
+  </Step>
+</Steps>
+
+For detailed hosting setup, see the [wiki](https://github.com/the-ora/browser/wiki).
+
+## Resources
+
+<CardGroup cols={2}>
+  <Card title="Development Setup" icon="wrench" href="/development/setup">
+    Complete environment setup guide
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/development/architecture">
+    Learn about Ora's architecture
+  </Card>
+  <Card title="Hot Reloading" icon="bolt" href="/development/hot-reloading">
+    Set up live SwiftUI updates
+  </Card>
+  <Card title="Discord Community" icon="discord" href="https://discord.gg/9aZWH52Zjm">
+    Join the community on Discord
+  </Card>
+  <Card title="GitHub Repository" icon="github" href="https://github.com/the-ora/browser">
+    View source code and issues
+  </Card>
+  <Card title="Security Guide" icon="shield" href="https://github.com/the-ora/browser/blob/main/SECURITY.md">
+    Security practices and disclosure
+  </Card>
+</CardGroup>
+
+## Questions?
+
+Join the community on [Discord](https://discord.gg/9aZWH52Zjm) or open an issue for discussion.
+
+---
+
+By contributing to Ora Browser, you agree that your contributions will be licensed under the [GPL-2.0 License](https://github.com/the-ora/browser/blob/main/LICENSE).
